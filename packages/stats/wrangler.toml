@@ -12,4 +12,4 @@ GITHUB_REPO = "Wadoekeani/palserver-gui"
 [[d1_databases]]
 binding = "DB"
 database_name = "palserver-stats"
-database_id = "REPLACE_WITH_YOUR_D1_DATABASE_ID"
+database_id = "8491c2e2-5a2f-45f8-b542-fa287091d44c"

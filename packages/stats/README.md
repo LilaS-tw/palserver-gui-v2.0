@@ -28,6 +28,15 @@ Cloudflare 後台綁自訂網域)。**把這個網址更新到兩個地方:**
 
 agent 端也可用環境變數 `PALSERVER_STATS_URL` 覆寫,不改码就能切換端點。
 
+## GitHub 下載數抓不到(downloads: null)?
+
+GitHub API 對匿名請求限流,Cloudflare Workers 的共用出口 IP 很容易踩到。
+放一個唯讀 token 即可穩定:
+
+```bash
+npx wrangler secret put GITHUB_TOKEN   # 貼上 fine-grained PAT(只需 public repo 唯讀)
+```
+
 ## 之後改 schema / 重新部署
 
 ```bash

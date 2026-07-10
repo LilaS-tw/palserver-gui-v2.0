@@ -11,6 +11,9 @@
 export interface Env {
   DB: D1Database;
   GITHUB_REPO: string;
+  /** 選填(wrangler secret put GITHUB_TOKEN):GitHub API 匿名請求常被限流,
+   * 放一個唯讀 fine-grained token 可穩定抓下載數。 */
+  GITHUB_TOKEN?: string;
 }
 
 const EVENT_TYPES = ["hello", "instance_created", "server_started", "players_seen"] as const;
@@ -124,7 +127,11 @@ async function githubDownloads(env: Env): Promise<number | null> {
 
   try {
     const res = await fetch(`https://api.github.com/repos/${env.GITHUB_REPO}/releases?per_page=100`, {
-      headers: { "User-Agent": "palserver-stats", Accept: "application/vnd.github+json" },
+      headers: {
+        "User-Agent": "palserver-stats",
+        Accept: "application/vnd.github+json",
+        ...(env.GITHUB_TOKEN ? { Authorization: `Bearer ${env.GITHUB_TOKEN}` } : {}),
+      },
     });
     if (!res.ok) throw new Error(`github ${res.status}`);
     const releases = (await res.json()) as { assets?: { download_count?: number }[] }[];
