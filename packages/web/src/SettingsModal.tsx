@@ -23,7 +23,7 @@ export function SettingsModal({
 }) {
   const { t } = useI18n();
   const [code, setCode] = useState<string | null>(null);
-  const [addrs, setAddrs] = useState<{ ip: string; tailscale: boolean }[] | null>(null);
+  const [addrs, setAddrs] = useState<{ ip: string; vpn: string | null }[] | null>(null);
   const [busy, setBusy] = useState(false);
   const [showToken, setShowToken] = useState(false);
   const [telemetry, setTelemetry] = useState<TelemetryStatus | null>(null);
@@ -114,9 +114,9 @@ export function SettingsModal({
               <p className="mb-1 text-xs font-bold text-ink-muted">{t("一鍵登入連結(複製給其他裝置打開)")}</p>
               <div className="flex items-center gap-2">
                 <Copyable text={linkFor(addrs[0].ip)} mono />
-                {addrs[0].tailscale && (
+                {addrs[0].vpn && (
                   <span className="inline-flex shrink-0 items-center gap-1 rounded-full border-[1.5px] border-pal/40 bg-pal/10 px-2 py-0.5 text-xs font-bold text-pal">
-                    <FiWifi className="size-3" /> Tailscale
+                    <FiWifi className="size-3" /> {addrs[0].vpn}
                   </span>
                 )}
               </div>

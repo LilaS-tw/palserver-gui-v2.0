@@ -450,12 +450,30 @@ export interface ConfigHealth {
 }
 
 /** How a friend can reach this server (LAN / VPN / public). */
+/**
+ * 認出常見「遊戲用 VPN」的位址,回傳顯示名稱;不是已知 VPN 就回 null。這些 VPN 都在
+ * 固定網段配發位址,可直接從 IP 判斷:
+ *  - Tailscale:100.64.0.0/10(CGNAT 保留段)
+ *  - Radmin VPN:26.0.0.0/8
+ *  - Hamachi:25.0.0.0/8
+ */
+export function detectVpn(ip: string): string | null {
+  const p = ip.split(".");
+  if (p.length !== 4) return null;
+  const [a, b] = p.map(Number);
+  if (Number.isNaN(a) || Number.isNaN(b)) return null;
+  if (a === 100 && b >= 64 && b <= 127) return "Tailscale";
+  if (a === 26) return "Radmin VPN";
+  if (a === 25) return "Hamachi";
+  return null;
+}
+
 export interface ConnectionInfo {
   gamePort: number;
   /** private LAN addresses (same-network friends) */
   lan: string[];
-  /** Tailscale address if the host is on a tailnet */
-  tailscale: string | null;
+  /** 偵測到的 VPN 位址(Tailscale / Radmin VPN / Hamachi …),各附顯示名稱 */
+  vpns: { name: string; address: string }[];
   /** public IP, best-effort (null when unknown/offline) */
   publicIp: string | null;
   /** host is behind a router → direct connect needs port forwarding */

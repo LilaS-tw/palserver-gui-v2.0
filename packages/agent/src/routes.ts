@@ -8,6 +8,7 @@ import {
   CreateInstanceSchema,
   UpdateSettingsSchema,
   WorldSettingsSchema,
+  detectVpn,
   type AgentInfo,
   type InstanceDetail,
   type InstanceSummary,
@@ -179,18 +180,17 @@ export function registerRoutes(
   // 已授權者可查目前配對碼,用來產生「邀請朋友遠端連線」的設定連結。
   app.get("/api/pair/code", async () => ({ pairingCode: auth.pairingCode }));
 
-  // 這台 agent 的可連 IPv4 位址(標出可能是 Tailscale 的),讓設定頁組出
-  // 給其他裝置用的登入連結。scheme/port 前端用自己連進來的網址即可推得。
+  // 這台 agent 的可連 IPv4 位址(標出可能是 VPN 的:Tailscale / Radmin / Hamachi),
+  // 讓設定頁組出給其他裝置用的登入連結。scheme/port 前端用自己連進來的網址即可推得。
   app.get("/api/addresses", async () => {
-    const out: { ip: string; tailscale: boolean }[] = [];
+    const out: { ip: string; vpn: string | null }[] = [];
     for (const addrs of Object.values(os.networkInterfaces())) {
       for (const a of addrs ?? []) {
         if (a.family !== "IPv4" || a.internal) continue;
-        const [x, y] = a.address.split(".").map(Number);
-        out.push({ ip: a.address, tailscale: x === 100 && y >= 64 && y <= 127 });
+        out.push({ ip: a.address, vpn: detectVpn(a.address) });
       }
     }
-    out.sort((a, b) => Number(b.tailscale) - Number(a.tailscale));
+    out.sort((a, b) => Number(!!b.vpn) - Number(!!a.vpn));
     return { addresses: out };
   });
 

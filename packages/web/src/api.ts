@@ -132,7 +132,7 @@ export class AgentClient {
   }
 
   /** 這台 agent 的可連 IPv4 位址,用來組給其他裝置的登入連結。 */
-  agentAddresses(): Promise<{ addresses: { ip: string; tailscale: boolean }[] }> {
+  agentAddresses(): Promise<{ addresses: { ip: string; vpn: string | null }[] }> {
     return this.request("/api/addresses");
   }
 

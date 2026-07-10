@@ -9,6 +9,7 @@ import cors from "@fastify/cors";
 import websocket from "@fastify/websocket";
 import fastifyStatic from "@fastify/static";
 import { ZodError } from "zod";
+import { detectVpn } from "@palserver/shared";
 import { DATA_DIR, HOST, PORT, AGENT_VERSION, REQUIRE_TOKEN, WEB_ORIGINS, TLS_ENABLED, OPEN_BROWSER } from "./env.js";
 import {
   loadOrCreateToken,
@@ -205,18 +206,17 @@ function resolveWebDist(): string | null {
   return null;
 }
 
-/** 收集本機各網卡的 IPv4,標出可能是 Tailscale(100.64.0.0/10)的位址。 */
-function localAddresses(): { ip: string; tailscale: boolean }[] {
-  const out: { ip: string; tailscale: boolean }[] = [];
+/** 收集本機各網卡的 IPv4,標出可能是 VPN(Tailscale / Radmin / Hamachi)的位址。 */
+function localAddresses(): { ip: string; vpn: string | null }[] {
+  const out: { ip: string; vpn: string | null }[] = [];
   for (const addrs of Object.values(os.networkInterfaces())) {
     for (const a of addrs ?? []) {
       if (a.family !== "IPv4" || a.internal) continue;
-      const [x, y] = a.address.split(".").map(Number);
-      out.push({ ip: a.address, tailscale: x === 100 && y >= 64 && y <= 127 });
+      out.push({ ip: a.address, vpn: detectVpn(a.address) });
     }
   }
-  // Tailscale/VPN 位址排前面(最適合遠端連線)。
-  return out.sort((a, b) => Number(b.tailscale) - Number(a.tailscale));
+  // VPN 位址排前面(最適合遠端連線)。
+  return out.sort((a, b) => Number(!!b.vpn) - Number(!!a.vpn));
 }
 
 /**
@@ -230,7 +230,7 @@ function printStartupBanner(
   hasWeb: boolean,
   willOpen: boolean,
 ): void {
-  const remote = localAddresses()[0]; // 優先 Tailscale/VPN,否則第一個區網位址
+  const remote = localAddresses()[0]; // 優先 VPN(Tailscale/Radmin…),否則第一個區網位址
   const L = (s = "") => process.stdout.write(s + "\n");
   L();
   L("  palserver GUI 已啟動。請保持這個視窗開著(關掉就會停止伺服器管理)。");
@@ -241,7 +241,7 @@ function printStartupBanner(
     L(`  API 位址(此版本未內含網頁介面): ${proto}://localhost:${port}`);
   }
   if (remote) {
-    L(`  邀朋友 / 其他裝置: ${proto}://${remote.ip}:${port}/?setup=${code}`);
+    L(`  邀朋友 / 其他裝置: ${proto}://${remote.ip}:${port}/?setup=${code}${remote.vpn ? `   (${remote.vpn})` : ""}`);
   }
   L(`  配對碼: ${code}   (在別的裝置連線時要用)`);
   if (proto === "https") L("  自簽憑證會跳安全警告,選「繼續前往」即可。");
