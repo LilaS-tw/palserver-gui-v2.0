@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { FiAlertTriangle, FiFileText, FiZap } from "react-icons/fi";
+import { FiAlertTriangle, FiFileText, FiZap, FiServer, FiExternalLink, FiMail } from "react-icons/fi";
 import {
   ENGINE_CATEGORY_LABELS,
   ENGINE_OPTIONS,
@@ -13,6 +13,7 @@ import type { FileHealth } from "@palserver/shared";
 import type { AgentClient } from "./api";
 import { FileEditor } from "./FileManager";
 import { ConfigCorruptModal } from "./ConfigCorruptModal";
+import { usePromoConfig } from "./promoConfig";
 import { btn, btnGhost, card, errorCls, inputCls } from "./ui";
 
 const KEYS = Object.keys(ENGINE_OPTIONS) as EngineOptionKey[];
@@ -39,6 +40,7 @@ export function EngineTab({
   const [editingRaw, setEditingRaw] = useState(false);
   const [corrupt, setCorrupt] = useState<FileHealth | null>(null);
   const [dismissed, setDismissed] = useState(false);
+  const { maintenanceService } = usePromoConfig();
 
   const refresh = useCallback(async () => {
     try {
@@ -139,6 +141,33 @@ export function EngineTab({
           )}
         </div>
         {!status.exists && <p className="text-[13px] text-sun">{status.reason}</p>}
+      </div>
+
+      {/* 推廣:不想自己顧效能/維運,交給我們的代管服務 */}
+      <div className="flex flex-col gap-3 rounded-(--radius-cute) border-2 border-pal/30 bg-pal/5 p-4">
+        <h3 className="inline-flex items-center gap-2 text-sm font-extrabold">
+          <FiServer className="size-4 text-pal" /> 調校很煩?交給我們維護
+        </h3>
+        <p className="text-[13px] text-ink-muted">
+          不想每次改版都自己救火、半夜還要爬起來救伺服器?
+          <b className="text-ink">{maintenanceService.name}</b>幫你長期代管維護 —— {maintenanceService.tagline}
+        </p>
+        <div className="flex flex-wrap gap-2">
+          <a
+            className={`${btn} inline-flex items-center gap-1.5`}
+            href={maintenanceService.url}
+            target="_blank"
+            rel="noreferrer"
+          >
+            <FiExternalLink className="size-4" /> 了解維護方案
+          </a>
+          <a
+            className={`${btnGhost} inline-flex items-center gap-1.5`}
+            href={`mailto:${maintenanceService.email}`}
+          >
+            <FiMail className="size-4" /> 免費諮詢
+          </a>
+        </div>
       </div>
 
       {[...grouped.entries()].map(([category, keys]) => (

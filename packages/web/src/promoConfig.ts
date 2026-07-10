@@ -17,6 +17,8 @@ import { useEffect, useState } from "react";
 export interface PromoConfig {
   company: { name: string; website: string; instagram: string; discord: string; sponsor: string };
   ipService: { name: string; website: string; discord: string };
+  /** 我們自己的遊戲伺服器代管維護服務(月費制),在引擎微調頁推廣。 */
+  maintenanceService: { name: string; url: string; tagline: string; email: string };
   vpn: {
     radmin: { site: string; tutorial: string };
     tailscale: { site: string; tutorial: string };
@@ -42,6 +44,12 @@ const DEFAULT: PromoConfig = {
     website: "https://iosoftware.ai/ip-connect-service",
     discord: "https://discord.gg/sgMMdUZd3V",
   },
+  maintenanceService: {
+    name: "遊戲伺服器維護服務",
+    url: "https://iosoftware.ai/server-maintain-service",
+    tagline: "版本更新、存檔備份、崩潰救援、連線設定,月費制透明計價,維運交給我們。",
+    email: "contact@iosoftware.ai",
+  },
   vpn: {
     radmin: {
       site: "https://www.radmin-vpn.com/",
@@ -64,16 +72,21 @@ function readCache(): PromoConfig | null {
   }
 }
 
-function looksValid(v: unknown): v is PromoConfig {
+function looksValid(v: unknown): v is Partial<PromoConfig> {
   const c = v as PromoConfig | null;
   return !!c?.company?.website && !!c?.ipService?.website && !!c?.vpn?.radmin?.site;
+}
+
+/** 把抓到的設定套在 DEFAULT 上,新欄位(遠端 JSON 還沒補的)才不會是 undefined。 */
+function withDefaults(c: Partial<PromoConfig> | null): PromoConfig {
+  return { ...DEFAULT, ...(c ?? {}) };
 }
 
 /**
  * Reactive config: starts from cache-or-default, then refreshes from GitHub.
  * Shared module state means it's fetched at most once per session.
  */
-let shared: PromoConfig = readCache() ?? DEFAULT;
+let shared: PromoConfig = withDefaults(readCache());
 let fetched = false;
 const listeners = new Set<(c: PromoConfig) => void>();
 
@@ -86,7 +99,7 @@ async function refresh(): Promise<void> {
     if (res.ok) {
       const data = await res.json();
       if (looksValid(data)) {
-        shared = data;
+        shared = withDefaults(data);
         localStorage.setItem(CACHE_KEY, JSON.stringify(data));
         listeners.forEach((l) => l(shared));
         return;
@@ -102,7 +115,7 @@ async function refresh(): Promise<void> {
       if (res.ok) {
         const data = await res.json();
         if (looksValid(data)) {
-          shared = data;
+          shared = withDefaults(data);
           listeners.forEach((l) => l(shared));
         }
       }
