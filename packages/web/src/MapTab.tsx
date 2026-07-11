@@ -1,52 +1,42 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { FiCrosshair, FiImage, FiRefreshCw, FiRepeat, FiX } from "react-icons/fi";
-import { MAP_BOUND, savToMap, type LiveStatus, type RestPlayer } from "@palserver/shared";
+import { FiRefreshCw } from "react-icons/fi";
+import * as L from "leaflet";
+import "leaflet/dist/leaflet.css";
+import { savToMap, type LiveStatus, type RestPlayer } from "@palserver/shared";
 import type { AgentClient } from "./api";
 import { t, useI18n } from "./i18n";
-import { btn, btnGhost, card, errorCls, inputCls } from "./ui";
+import { btnGhost, card, errorCls } from "./ui";
 
 /**
- * Live player map. The world map image is a Pocketpair asset, so we don't
- * ship one — the user supplies their own (URL or uploaded file, kept in
- * localStorage) and we overlay players on the game's [-1000, 1000] map square.
- * Without a background image the grid alone still places players correctly.
+ * Live player map on the official Palworld world map (palworld.wiki.gg's
+ * "Palpagos Islands World Map", which already includes Sakurajima etc.).
+ *
+ * Rendering is Leaflet with CRS.Simple: the world map coordinate square is the
+ * CRS, so a player at savToMap(x,y) → LatLng(mapY, mapX) lands deterministically
+ * — no manual calibration or flip toggles. The image is anchored by the exact
+ * map-coordinate bounds the wiki's DataMaps publishes for that image, so the
+ * whole thing is correct by construction.
  */
-const BG_KEY = "palserver.mapBackground";
-const FLIP_Y_KEY = "palserver.mapFlipY";
-const FLIP_X_KEY = "palserver.mapFlipX";
-const CALIB_KEY = "palserver.mapCalibration";
-const SIZE = 2 * MAP_BOUND; // svg viewBox is the map square itself
+const MAP_IMAGE = "/palpagos-world-map.webp";
 
-/** How the background image is laid over the coordinate square. Map images
- * from different sources (and different game versions — Sakurajima, Feybreak…)
- * don't all frame the square identically, so the user can nudge/zoom it. */
-interface Calibration {
-  scale: number;
-  offsetX: number;
-  offsetY: number;
-}
-const DEFAULT_CALIBRATION: Calibration = { scale: 1, offsetX: 0, offsetY: 0 };
+/**
+ * Map-coordinate corners of MAP_IMAGE, from palworld.wiki.gg/wiki/Maps
+ * (DataMaps): topLeft [x -1954.074, y 1245.725], bottomRight [x 1200.261,
+ * y -1908.610]. CRS.Simple uses [lat,lng] = [mapY (north), mapX (east)], so the
+ * image spans [[south, west], [north, east]]:
+ */
+const IMAGE_BOUNDS = L.latLngBounds(
+  [-1908.61002179, -1954.07407407],
+  [1245.7254902, 1200.26143791],
+);
 
-function loadCalibration(): Calibration {
-  try {
-    return { ...DEFAULT_CALIBRATION, ...JSON.parse(localStorage.getItem(CALIB_KEY) ?? "{}") };
-  } catch {
-    return DEFAULT_CALIBRATION;
-  }
-}
+const escapeHtml = (s: string) =>
+  s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c] ?? c);
 
 export function MapTab({ client, instanceId }: { client: AgentClient; instanceId: string }) {
   useI18n();
   const [live, setLive] = useState<LiveStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [background, setBackground] = useState(() => localStorage.getItem(BG_KEY) ?? "");
-  const [flipX, setFlipX] = useState(() => localStorage.getItem(FLIP_X_KEY) === "1");
-  const [flipY, setFlipY] = useState(() => localStorage.getItem(FLIP_Y_KEY) === "1");
-  const [calib, setCalibState] = useState<Calibration>(loadCalibration);
-  const [showCalib, setShowCalib] = useState(false);
-  const [urlDraft, setUrlDraft] = useState("");
-  const [hovered, setHovered] = useState<string | null>(null);
-  const fileRef = useRef<HTMLInputElement>(null);
 
   const refresh = useCallback(async () => {
     try {
@@ -63,37 +53,6 @@ export function MapTab({ client, instanceId }: { client: AgentClient; instanceId
     return () => clearInterval(timer);
   }, [refresh]);
 
-  const saveBackground = (value: string) => {
-    setBackground(value);
-    if (value) localStorage.setItem(BG_KEY, value);
-    else localStorage.removeItem(BG_KEY);
-  };
-
-  const uploadBackground = (file: File | undefined) => {
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => saveBackground(String(reader.result));
-    reader.readAsDataURL(file);
-  };
-
-  const toggleFlipY = () => {
-    const next = !flipY;
-    setFlipY(next);
-    localStorage.setItem(FLIP_Y_KEY, next ? "1" : "0");
-  };
-
-  const toggleFlipX = () => {
-    const next = !flipX;
-    setFlipX(next);
-    localStorage.setItem(FLIP_X_KEY, next ? "1" : "0");
-  };
-
-  const setCalibration = (patch: Partial<Calibration>) => {
-    const next = { ...calib, ...patch };
-    setCalibState(next);
-    localStorage.setItem(CALIB_KEY, JSON.stringify(next));
-  };
-
   if (!live) return <p className="text-ink-muted">{error ?? t("載入中…")}</p>;
   if (!live.available) {
     return (
@@ -109,263 +68,95 @@ export function MapTab({ client, instanceId }: { client: AgentClient; instanceId
       {error && <p className={errorCls}>{error}</p>}
 
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-[13px] font-bold text-ink-muted">
-          {t("在線玩家 {n} 人", { n: live.players.length })}{background ? "" : ` · ${t("尚未設定地圖底圖")}`}
-        </p>
-        <div className="flex flex-wrap gap-2">
-          <button className={btnGhost} onClick={refresh} aria-label={t("重新整理")}>
-            <FiRefreshCw className="size-4" />
-          </button>
-          <button
-            className={`${btnGhost} inline-flex items-center gap-1.5 ${flipY ? "border-pal text-pal" : ""}`}
-            onClick={toggleFlipY}
-            title={t("若玩家位置南北顛倒,按此翻轉")}
-          >
-            <FiRepeat className="size-4" /> {t("翻轉南北")}
-          </button>
-          <button
-            className={`${btnGhost} inline-flex items-center gap-1.5 ${flipX ? "border-pal text-pal" : ""}`}
-            onClick={toggleFlipX}
-            title={t("若玩家位置東西顛倒,按此翻轉")}
-          >
-            <FiRepeat className="size-4 rotate-90" /> {t("翻轉東西")}
-          </button>
-          <button
-            className={`${btnGhost} inline-flex items-center gap-1.5`}
-            onClick={() => fileRef.current?.click()}
-          >
-            <FiImage className="size-4" /> {t("上傳底圖")}
-          </button>
-          {background && (
-            <>
-              <button
-                className={`${btnGhost} inline-flex items-center gap-1.5 ${showCalib ? "border-pal text-pal" : ""}`}
-                onClick={() => setShowCalib((v) => !v)}
-              >
-                <FiCrosshair className="size-4" /> {t("校正底圖")}
-              </button>
-              <button
-                className={`${btnGhost} inline-flex items-center gap-1.5 text-berry hover:border-berry`}
-                onClick={() => saveBackground("")}
-              >
-                <FiX className="size-4" /> {t("移除底圖")}
-              </button>
-            </>
-          )}
-          <input
-            ref={fileRef}
-            type="file"
-            accept="image/*"
-            className="hidden"
-            onChange={(e) => uploadBackground(e.target.files?.[0])}
-          />
-        </div>
+        <p className="text-[13px] font-bold text-ink-muted">{t("在線玩家 {n} 人", { n: live.players.length })}</p>
+        <button className={btnGhost} onClick={refresh} aria-label={t("重新整理")}>
+          <FiRefreshCw className="size-4" />
+        </button>
       </div>
 
-      {!background && (
-        <div className={`${card} flex flex-wrap items-center gap-2`}>
-          <p className="min-w-52 flex-1 text-[13px] text-ink-muted">
-            {t("貼上地圖圖片網址,或用「上傳底圖」選擇你自己的世界地圖截圖(圖片需為整張方形世界地圖)。")}
-          </p>
-          <input
-            className={`${inputCls} min-w-52 flex-1`}
-            value={urlDraft}
-            onChange={(e) => setUrlDraft(e.target.value)}
-            placeholder="https://…/palworld-map.png"
-          />
-          <button className={btn} onClick={() => saveBackground(urlDraft.trim())} disabled={!urlDraft.trim()}>
-            {t("套用")}
-          </button>
-        </div>
-      )}
-
-      {background && showCalib && (
-        <div className={`${card} flex flex-col gap-3`}>
-          <p className="text-[13px] text-ink-muted">
-            {t("調整底圖直到地形與玩家實際位置吻合(不同來源、不同遊戲版本的地圖裁切範圍不一樣)。")}
-          </p>
-          <Slider
-            label={t("縮放")}
-            value={calib.scale}
-            min={0.5}
-            max={2}
-            step={0.005}
-            format={(v) => `${(v * 100).toFixed(1)}%`}
-            onChange={(scale) => setCalibration({ scale })}
-          />
-          <Slider
-            label={t("水平位移(東西)")}
-            value={calib.offsetX}
-            min={-MAP_BOUND}
-            max={MAP_BOUND}
-            step={5}
-            format={(v) => String(Math.round(v))}
-            onChange={(offsetX) => setCalibration({ offsetX })}
-          />
-          <Slider
-            label={t("垂直位移(南北)")}
-            value={calib.offsetY}
-            min={-MAP_BOUND}
-            max={MAP_BOUND}
-            step={5}
-            format={(v) => String(Math.round(v))}
-            onChange={(offsetY) => setCalibration({ offsetY })}
-          />
-          <div>
-            <button className={btnGhost} onClick={() => setCalibration(DEFAULT_CALIBRATION)}>
-              {t("重置校正")}
-            </button>
-          </div>
-        </div>
-      )}
-
       <div className={`${card} overflow-hidden p-2`}>
-        <svg
-          viewBox={`${-MAP_BOUND} ${-MAP_BOUND} ${SIZE} ${SIZE}`}
-          className="aspect-square w-full rounded-xl bg-card-soft"
-        >
-          {background && (
-            <image
-              href={background}
-              x={-MAP_BOUND * calib.scale + calib.offsetX}
-              y={-MAP_BOUND * calib.scale + calib.offsetY}
-              width={SIZE * calib.scale}
-              height={SIZE * calib.scale}
-              preserveAspectRatio="none"
-            />
-          )}
-          <Grid />
-          {live.players.map((player) => (
-            <PlayerMarker
-              key={player.userId}
-              player={player}
-              flipX={flipX}
-              flipY={flipY}
-              hovered={hovered === player.userId}
-              onHover={setHovered}
-            />
-          ))}
-        </svg>
+        <PlayerMap players={live.players} />
       </div>
 
       <p className="text-[13px] text-ink-muted">
-        {t("座標為遊戲內地圖座標(範圍 ±{bound},x 向東、y 向北,北方朝上)。底圖方向若與遊戲不同,可用「翻轉南北 / 翻轉東西」校正。", { bound: MAP_BOUND })}
+        {t("玩家位置即時顯示在官方世界地圖上,座標來自伺服器 REST API。滑鼠滾輪縮放、拖曳平移,點玩家看詳情。")}
       </p>
     </div>
   );
 }
 
-function Slider({
-  label,
-  value,
-  min,
-  max,
-  step,
-  format,
-  onChange,
-}: {
-  label: string;
-  value: number;
-  min: number;
-  max: number;
-  step: number;
-  format: (v: number) => string;
-  onChange: (v: number) => void;
-}) {
-  return (
-    <div className="flex flex-wrap items-center gap-3">
-      <span className="w-32 text-[13px] font-bold text-ink-muted">{label}</span>
-      <input
-        type="range"
-        className="min-w-40 flex-1 accent-(--color-pal)"
-        value={value}
-        min={min}
-        max={max}
-        step={step}
-        onChange={(e) => onChange(Number(e.target.value))}
-      />
-      <span className="w-16 text-right text-[13px] font-bold">{format(value)}</span>
-    </div>
-  );
-}
+/** Leaflet CRS.Simple map + one circle marker per online player. */
+function PlayerMap({ players }: { players: RestPlayer[] }) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const mapRef = useRef<L.Map | null>(null);
+  const markersRef = useRef<L.LayerGroup | null>(null);
 
-function Grid() {
-  const lines = [];
-  for (let v = -MAP_BOUND; v <= MAP_BOUND; v += 250) {
-    const major = v === 0;
-    lines.push(
-      <line
-        key={`h${v}`}
-        x1={-MAP_BOUND}
-        y1={v}
-        x2={MAP_BOUND}
-        y2={v}
-        stroke="currentColor"
-        strokeWidth={major ? 3 : 1}
-        opacity={major ? 0.35 : 0.15}
-      />,
-      <line
-        key={`v${v}`}
-        x1={v}
-        y1={-MAP_BOUND}
-        x2={v}
-        y2={MAP_BOUND}
-        stroke="currentColor"
-        strokeWidth={major ? 3 : 1}
-        opacity={major ? 0.35 : 0.15}
-      />,
-    );
-  }
-  return <g className="text-ink-muted">{lines}</g>;
-}
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el || mapRef.current) return;
+    const map = L.map(el, {
+      crs: L.CRS.Simple,
+      attributionControl: false,
+      zoomSnap: 0.25,
+      maxZoom: 6,
+    });
+    el.style.background = "transparent"; // let the card bg show past the image instead of Leaflet's grey
+    L.imageOverlay(MAP_IMAGE, IMAGE_BOUNDS).addTo(map);
+    map.setMaxBounds(IMAGE_BOUNDS.pad(0.3));
+    markersRef.current = L.layerGroup().addTo(map);
+    mapRef.current = map;
 
-function PlayerMarker({
-  player,
-  flipX,
-  flipY,
-  hovered,
-  onHover,
-}: {
-  player: RestPlayer;
-  flipX: boolean;
-  flipY: boolean;
-  hovered: boolean;
-  onHover: (id: string | null) => void;
-}) {
-  const map = savToMap(player.location_x, player.location_y);
-  // SVG's y grows downward while map y grows north, so negate to put north up.
-  const x = flipX ? -map.x : map.x;
-  const y = flipY ? map.y : -map.y;
-  return (
-    <g
-      transform={`translate(${x} ${y})`}
-      onMouseEnter={() => onHover(player.userId)}
-      onMouseLeave={() => onHover(null)}
-      className="cursor-pointer"
-    >
-      <circle r={hovered ? 26 : 18} className="fill-pal" stroke="white" strokeWidth={6} />
-      <text
-        y={-38}
-        textAnchor="middle"
-        className="fill-ink"
-        style={{ fontSize: 44, fontWeight: 800, paintOrder: "stroke" }}
-        stroke="white"
-        strokeWidth={10}
-      >
-        {player.name}
-      </text>
-      {hovered && (
-        <text
-          y={62}
-          textAnchor="middle"
-          className="fill-ink-muted"
-          style={{ fontSize: 34, fontWeight: 700, paintOrder: "stroke" }}
-          stroke="white"
-          strokeWidth={8}
-        >
-          {Math.round(map.x)}, {Math.round(map.y)} · Lv.{player.level}
-        </text>
-      )}
-    </g>
-  );
+    // The square container gets its height from layout, which may not be final
+    // when the effect first runs — refit once the size settles.
+    const fit = () => {
+      map.invalidateSize();
+      map.fitBounds(IMAGE_BOUNDS);
+    };
+    fit();
+    const raf = requestAnimationFrame(() => {
+      fit();
+      map.setMinZoom(map.getZoom() - 0.5);
+    });
+    const ro = new ResizeObserver(() => map.invalidateSize());
+    ro.observe(el);
+
+    return () => {
+      cancelAnimationFrame(raf);
+      ro.disconnect();
+      map.remove();
+      mapRef.current = null;
+      markersRef.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
+    const group = markersRef.current;
+    if (!group) return;
+    group.clearLayers();
+    const pal =
+      getComputedStyle(document.documentElement).getPropertyValue("--color-pal").trim() || "#7c5cff";
+    for (const p of players) {
+      const { x, y } = savToMap(p.location_x, p.location_y);
+      const marker = L.circleMarker([y, x], {
+        radius: 7,
+        weight: 3,
+        color: "#ffffff",
+        fillColor: pal,
+        fillOpacity: 1,
+      });
+      marker.bindTooltip(escapeHtml(p.name || "—"), {
+        permanent: true,
+        direction: "top",
+        offset: L.point(0, -6),
+        className: "pmap-label",
+      });
+      marker.bindPopup(
+        `<div style="font-weight:800">${escapeHtml(p.name || "—")}</div>` +
+          `<div>${t("座標")} ${Math.round(x)}, ${Math.round(y)} · Lv.${p.level}</div>`,
+      );
+      group.addLayer(marker);
+    }
+  }, [players]);
+
+  return <div ref={containerRef} className="aspect-square w-full rounded-xl bg-card-soft" />;
 }

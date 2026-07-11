@@ -71,3 +71,18 @@ body {
   background-attachment: fixed;
   color: var(--color-ink);
 }
+
+/* Player-name labels on the online map (Leaflet permanent tooltips): drop the
+   default white box for a clean floating label, like the rest of the UI. */
+.leaflet-tooltip.pmap-label {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  padding: 0;
+  color: var(--color-ink);
+  font-weight: 800;
+  font-size: 12px;
+  white-space: nowrap;
+  text-shadow: 0 0 3px #fff, 0 0 3px #fff, 0 0 4px #fff;
+}
+.leaflet-tooltip.pmap-label::before { display: none; } /* hide the callout arrow */
