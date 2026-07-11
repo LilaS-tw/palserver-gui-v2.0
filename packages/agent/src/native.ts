@@ -39,15 +39,39 @@ export function classifyServerDir(dir: string): "adopt" | "install" | "not-a-ser
 const pidFile = (ctx: DriverContext) => path.join(ctx.instanceDir, "server.pid");
 const logFile = (ctx: DriverContext) => path.join(ctx.instanceDir, "server.log");
 
-function readPid(ctx: DriverContext): number | null {
+/**
+ * pid 檔內容:PID + 行程「建立時間」當身分指紋。只存數字不夠 —— Windows 很快
+ * 就回收 PID,一台崩潰後留下的陳舊 pid 檔,號碼可能已被別台的 PalServer 重用,
+ * 誤把鄰居當成自己(狀態張冠李戴、甚至 stop 時 taskkill 砍到別台)。所以用前必須
+ * 比對建立時間確認「這個 PID 真的是這台實例當初開的那個行程」。 */
+interface PidRecord {
+  pid: number;
+  /** OS 回報的行程建立時間;舊格式(純數字)沒有,為 null 時退回舊行為。 */
+  startedAt: string | null;
+}
+
+function readPidRecord(ctx: DriverContext): PidRecord | null {
   try {
-    const pid = Number(fs.readFileSync(pidFile(ctx), "utf8").trim());
-    return Number.isInteger(pid) && pid > 0 ? pid : null;
+    const raw = fs.readFileSync(pidFile(ctx), "utf8").trim();
+    if (raw.startsWith("{")) {
+      const o = JSON.parse(raw) as { pid?: unknown; startedAt?: unknown };
+      const pid = Number(o.pid);
+      if (!Number.isInteger(pid) || pid <= 0) return null;
+      return { pid, startedAt: typeof o.startedAt === "string" ? o.startedAt : null };
+    }
+    // 舊格式:pid 檔只有一個數字。
+    const pid = Number(raw);
+    return Number.isInteger(pid) && pid > 0 ? { pid, startedAt: null } : null;
   } catch {
     return null;
   }
 }
 
+function writePidRecord(ctx: DriverContext, record: PidRecord): void {
+  fs.writeFileSync(pidFile(ctx), JSON.stringify(record));
+}
+
+/** 這個 PID 號碼目前存不存在(便宜的快速檢查,不驗身分)。 */
 function isAlive(pid: number): boolean {
   try {
     process.kill(pid, 0);
@@ -55,6 +79,54 @@ function isAlive(pid: number): boolean {
   } catch {
     return false;
   }
+}
+
+/** OS 回報某 PID 的身分(建立時間 + 映像名);行程不存在時回 null。 */
+async function processIdentity(pid: number): Promise<{ startedAt: string; image: string } | null> {
+  try {
+    if (IS_WIN) {
+      const { stdout } = await execFileP(
+        "powershell",
+        [
+          "-NoProfile",
+          "-Command",
+          `$p = Get-CimInstance Win32_Process -Filter "ProcessId=${pid}"; if ($p) { "$($p.CreationDate.ToString('o'))|$($p.Name)" }`,
+        ],
+        { windowsHide: true },
+      );
+      const line = stdout.trim();
+      if (!line) return null;
+      const [startedAt, image] = line.split("|");
+      return { startedAt: startedAt ?? "", image: image ?? "" };
+    }
+    const { stdout } = await execFileP("ps", ["-p", String(pid), "-o", "lstart="]);
+    const startedAt = stdout.trim();
+    if (!startedAt) return null;
+    let image = "";
+    try {
+      image = (await execFileP("ps", ["-p", String(pid), "-o", "comm="])).stdout.trim();
+    } catch {
+      /* image 只在 Windows 拿來多擋一層,拿不到不影響 */
+    }
+    return { startedAt, image };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * 這台實例的伺服器是否真的在跑。先用便宜的 isAlive 篩掉「PID 根本不存在」,
+ * 存在時再比對建立時間確認不是別台重用同一個 PID 號碼的行程。 */
+async function checkAlive(ctx: DriverContext): Promise<{ alive: boolean; pid: number | null }> {
+  const record = readPidRecord(ctx);
+  if (!record) return { alive: false, pid: null };
+  if (!isAlive(record.pid)) return { alive: false, pid: record.pid }; // 號碼不在 → 已結束
+  if (record.startedAt === null) return { alive: true, pid: record.pid }; // 舊 pid 檔,無從驗證
+  const id = await processIdentity(record.pid);
+  if (!id) return { alive: false, pid: record.pid };
+  // 建立時間對不上 = 這個 PID 已被別的行程重用,不是我們的。
+  if (id.startedAt !== record.startedAt) return { alive: false, pid: record.pid };
+  return { alive: true, pid: record.pid };
 }
 
 async function killTree(pid: number): Promise<void> {
@@ -336,13 +408,13 @@ async function getNativeStatus(
   ctx: DriverContext,
 ): Promise<{ status: InstanceStatus; runtimeId: string | null }> {
   if (installing.has(rec.id)) return { status: "installing", runtimeId: null };
-  const pid = readPid(ctx);
-  if (pid !== null && isAlive(pid)) return { status: "running", runtimeId: String(pid) };
+  const { alive, pid } = await checkAlive(ctx);
+  if (alive && pid !== null) return { status: "running", runtimeId: String(pid) };
   if (pid !== null) return { status: "exited", runtimeId: null };
   return { status: "created", runtimeId: null };
 }
 
-function spawnServer(rec: InstanceRecord, ctx: DriverContext): void {
+async function spawnServer(rec: InstanceRecord, ctx: DriverContext): Promise<void> {
   writeIni(rec, ctx);
   const launcher = path.join(serverRoot(rec, ctx), SERVER_LAUNCHER);
   // DepotDownloader (and adopted installs copied from elsewhere) don't
@@ -362,8 +434,10 @@ function spawnServer(rec: InstanceRecord, ctx: DriverContext): void {
   );
   fs.closeSync(out);
   if (!child.pid) throw new Error("failed to spawn PalServer");
-  fs.writeFileSync(pidFile(ctx), String(child.pid));
   child.unref();
+  // 記下 PID + 建立時間當身分指紋,之後 isAlive/停止前都靠它辨認,避免 PID 重用誤殺。
+  const id = await processIdentity(child.pid).catch(() => null);
+  writePidRecord(ctx, { pid: child.pid, startedAt: id?.startedAt ?? null });
 }
 
 export const nativeDriver: ServerDriver = {
@@ -380,7 +454,7 @@ export const nativeDriver: ServerDriver = {
     if (alreadyInstalled) {
       // Fast path: spawn synchronously so errors surface in the response.
       await ensureInstalled(rec, ctx, appendLog); // validates adopted dirs
-      spawnServer(rec, ctx);
+      await spawnServer(rec, ctx);
       installErrors.delete(rec.id); // 成功啟動,清掉上次的安裝失敗
       return;
     }
@@ -392,7 +466,7 @@ export const nativeDriver: ServerDriver = {
     void (async () => {
       try {
         await ensureInstalled(rec, ctx, appendLog);
-        spawnServer(rec, ctx);
+        await spawnServer(rec, ctx);
       } catch (err) {
         const info = classifyInstallError(err);
         installErrors.set(rec.id, info);
@@ -408,15 +482,28 @@ export const nativeDriver: ServerDriver = {
   },
 
   async stop(rec, ctx) {
-    const pid = readPid(ctx);
-    if (pid === null || !isAlive(pid)) return;
+    const { alive, pid } = await checkAlive(ctx);
+    // 沒在跑(或 pid 檔的號碼已被別的行程重用)→ 只清掉 pid 檔,絕不 taskkill。
+    // 這正是「動一台卻關掉另一台」的根因:陳舊 pid 檔 + Windows PID 重用。
+    if (!alive || pid === null) {
+      fs.rmSync(pidFile(ctx), { force: true });
+      return;
+    }
 
     if (await requestGracefulShutdown(rec)) {
+      // 等它自己收 —— 這期間用便宜的 isAlive 即可:行程還活著就不可能被重用。
       for (let i = 0; i < 20 && isAlive(pid); i++) {
         await new Promise((r) => setTimeout(r, 500));
       }
     }
-    if (isAlive(pid)) await killTree(pid);
+    // 真的要硬砍前,再驗一次身分 + 確認映像名是 PalServer,避免這半秒內 PID 剛好被重用。
+    if (isAlive(pid)) {
+      const id = await processIdentity(pid);
+      const record = readPidRecord(ctx);
+      const stillOurs = !!id && (record?.startedAt == null || id.startedAt === record.startedAt);
+      const isPalServer = !IS_WIN || /palserver/i.test(id?.image ?? "");
+      if (stillOurs && isPalServer) await killTree(pid);
+    }
     fs.rmSync(pidFile(ctx), { force: true });
   },
 
@@ -427,8 +514,10 @@ export const nativeDriver: ServerDriver = {
   },
 
   async stats(_rec, ctx) {
-    const pid = readPid(ctx);
-    if (pid === null || !isAlive(pid)) return null;
+    // 用 checkAlive 而非裸 pid:PID 被別台重用時別回報鄰居的 CPU/記憶體。
+    const live = await checkAlive(ctx);
+    if (!live.alive || live.pid === null) return null;
+    const pid = live.pid;
     // PalServer.exe is a thin launcher; the actual server is a child process
     // (PalServer-Win64-Shipping-Cmd.exe), so aggregate the whole tree.
     const pids = [pid, ...(await listDescendants(pid))];
