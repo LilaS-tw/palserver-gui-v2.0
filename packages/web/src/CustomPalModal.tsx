@@ -4,16 +4,43 @@ import { GiEggClutch } from "react-icons/gi";
 import type { CustomPalInput, KnownPlayer } from "@palserver/shared";
 import type { AgentClient } from "./api";
 import { EntityPicker } from "./EntityPicker";
-import { useGameData, palIconUrl, itemIconUrl } from "./gameData";
+import { MultiPicker } from "./MultiPicker";
+import { useGameData, palIconUrl, itemIconUrl, type GameEntity } from "./gameData";
 import { t, useI18n } from "./i18n";
 import { Overlay, btn, card, errorCls, inputCls } from "./ui";
 
-/** 逗號/空白分隔 -> 去空白陣列。 */
-const splitIds = (s: string) =>
-  s
-    .split(/[,\s]+/)
-    .map((x) => x.trim())
-    .filter(Boolean);
+/** 主動技元素配色(沒對到的就用中性灰)。 */
+const ELEMENT_COLOR: Record<string, string> = {
+  Normal: "#b8b8b8",
+  Fire: "#ef6a6a",
+  Water: "#5aa9e6",
+  Electricity: "#e8c34a",
+  Grass: "#6fbf73",
+  Dark: "#8a6fbf",
+  Dragon: "#a06fbf",
+  Ground: "#c08a5a",
+  Ice: "#6fd0d6",
+};
+
+/** chip / 選單列前面的小標:主動技=元素色點,詞條=等級徽章。 */
+const skillMeta = (e: GameEntity) => (
+  <span
+    className="size-2.5 shrink-0 rounded-full"
+    style={{ background: ELEMENT_COLOR[e.element ?? "Normal"] ?? "#b8b8b8" }}
+    title={e.element}
+  />
+);
+const passiveMeta = (e: GameEntity) => {
+  if (e.rank == null) return null;
+  const bad = e.rank < 0;
+  return (
+    <span
+      className={`shrink-0 rounded px-1 text-[10px] font-bold ${bad ? "bg-berry/15 text-berry" : "bg-grass/15 text-grass"}`}
+    >
+      {bad ? e.rank : `+${e.rank}`}
+    </span>
+  );
+};
 
 /** 數字輸入:空字串 -> undefined(交給 PalDefender 預設)。 */
 function numOrUndef(v: string): number | undefined {
@@ -50,8 +77,8 @@ export function CustomPalModal({
   const [gender, setGender] = useState<"" | "None" | "Male" | "Female">("");
   const [level, setLevel] = useState("");
   const [stars, setStars] = useState("");
-  const [passives, setPassives] = useState("");
-  const [skills, setSkills] = useState("");
+  const [passives, setPassives] = useState<string[]>([]);
+  const [skills, setSkills] = useState<string[]>([]);
   const [iv, setIv] = useState({ health: "", attackMelee: "", attackShot: "", defense: "" });
   const [souls, setSouls] = useState({ health: "", attack: "", defense: "", craftSpeed: "" });
 
@@ -89,8 +116,8 @@ export function CustomPalModal({
       ...(gender ? { gender } : {}),
       ...(numOrUndef(level) != null ? { level: numOrUndef(level) } : {}),
       ...(numOrUndef(stars) != null ? { condensedPals: numOrUndef(stars) } : {}),
-      ...(splitIds(passives).length ? { passives: splitIds(passives).slice(0, 8) } : {}),
-      ...(splitIds(skills).length ? { activeSkills: splitIds(skills).slice(0, 3) } : {}),
+      ...(passives.length ? { passives: passives.slice(0, 8) } : {}),
+      ...(skills.length ? { activeSkills: skills.slice(0, 3) } : {}),
       ivs: {
         health: numOrUndef(iv.health),
         attackMelee: numOrUndef(iv.attackMelee),
@@ -241,24 +268,28 @@ export function CustomPalModal({
             {numField(t("等級"), level, setLevel, 100)}
           </div>
 
-          <label className="flex min-w-0 flex-col gap-1 text-xs font-bold text-ink-muted">
-            {t("詞條 / 被動(ID,逗號分隔,最多 8)")}
-            <input
-              className={inputCls}
+          <div className="flex min-w-0 flex-col gap-1 text-xs font-bold text-ink-muted">
+            {t("詞條 / 被動(最多 8)")}
+            <MultiPicker
+              catalog={gameData?.passives ?? []}
               value={passives}
-              placeholder="Legend, CraftSpeed_up3"
-              onChange={(e) => setPassives(e.target.value)}
+              onChange={setPassives}
+              max={8}
+              placeholder={t("搜尋詞條名稱或輸入 ID…")}
+              renderMeta={passiveMeta}
             />
-          </label>
-          <label className="flex min-w-0 flex-col gap-1 text-xs font-bold text-ink-muted">
-            {t("主動技(ID,逗號分隔,最多 3)")}
-            <input
-              className={inputCls}
+          </div>
+          <div className="flex min-w-0 flex-col gap-1 text-xs font-bold text-ink-muted">
+            {t("主動技(最多 3)")}
+            <MultiPicker
+              catalog={gameData?.activeSkills ?? []}
               value={skills}
-              placeholder="SandTornado, RockLance"
-              onChange={(e) => setSkills(e.target.value)}
+              onChange={setSkills}
+              max={3}
+              placeholder={t("搜尋主動技名稱或輸入 ID…")}
+              renderMeta={skillMeta}
             />
-          </label>
+          </div>
 
           <div>
             <p className="mb-1 text-xs font-bold text-ink-muted">{t("體質 / IV(0–255)")}</p>

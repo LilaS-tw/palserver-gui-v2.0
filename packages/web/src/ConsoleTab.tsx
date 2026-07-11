@@ -201,6 +201,11 @@ export function ConsoleTab({ client, instanceId }: { client: AgentClient; instan
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [log]);
 
+  // 選了指令 / 改了參數,就把組好的指令帶進「唯一」的輸入列(仍可手動改)。
+  useEffect(() => {
+    if (selected) setRaw(buildCommand(selected, values));
+  }, [selected, values]);
+
   const run = async (command: string) => {
     setBusy(true);
     setError(null);
@@ -215,17 +220,23 @@ export function ConsoleTab({ client, instanceId }: { client: AgentClient; instan
     }
   };
 
-  const submitForm = async (e: React.FormEvent) => {
+  // 唯一輸入列的送出:有選指令就先驗必填 / 危險確認,再執行輸入列裡的內容。
+  const submitRaw = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selected) return;
-    const missing = selected.args.filter((a) => a.required && !values[a.name]?.trim());
-    if (missing.length > 0) {
-      setError(t("缺少必填參數:{list}", { list: missing.map((a) => t(a.label)).join("、") }));
-      return;
-    }
-    const command = buildCommand(selected, values);
-    if (selected.dangerous && !confirm(t("「{label}」是不可復原的操作。\n\n確定要執行 {command} 嗎?", { label: t(selected.label), command }))) {
-      return;
+    const command = raw.trim();
+    if (!command) return;
+    if (selected) {
+      const missing = selected.args.filter((a) => a.required && !values[a.name]?.trim());
+      if (missing.length > 0) {
+        setError(t("缺少必填參數:{list}", { list: missing.map((a) => t(a.label)).join("、") }));
+        return;
+      }
+      if (
+        selected.dangerous &&
+        !confirm(t("「{label}」是不可復原的操作。\n\n確定要執行 {command} 嗎?", { label: t(selected.label), command }))
+      ) {
+        return;
+      }
     }
     await run(command);
   };
@@ -343,13 +354,10 @@ export function ConsoleTab({ client, instanceId }: { client: AgentClient; instan
           </div>
         </div>
 
-        {/* 工作區:選定指令表單 + 原始指令 + 輸出(輸出撐滿) */}
+        {/* 工作區:選定指令的參數 + 唯一輸入列 + 輸出(有內容才出現) */}
         <div className="flex min-h-0 flex-col gap-3">
-          {selected && (
-            <form
-              className="flex shrink-0 flex-col gap-3 rounded-cute border-2 border-line p-3"
-              onSubmit={submitForm}
-            >
+          {selected && selected.args.length > 0 && (
+            <div className="flex shrink-0 flex-col gap-3 rounded-cute border-2 border-line p-3">
               <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
                 <h3 className="font-mono text-sm font-extrabold">{selected.name}</h3>
                 <span className="rounded-full bg-card-soft px-2 py-0.5 text-xs text-ink-muted">
@@ -357,58 +365,46 @@ export function ConsoleTab({ client, instanceId }: { client: AgentClient; instan
                 </span>
                 <p className="w-full text-[13px] text-ink-muted">{t(selected.label)}</p>
               </div>
-              {selected.args.length > 0 && (
-                <div className="grid gap-3 sm:grid-cols-2">
-                  {selected.args.map((arg) => (
-                    <ArgField
-                      key={arg.name}
-                      arg={arg}
-                      roster={roster}
-                      gameData={gameData}
-                      value={values[arg.name] ?? ""}
-                      onChange={(value) => setValues((v) => ({ ...v, [arg.name]: value }))}
-                    />
-                  ))}
-                </div>
-              )}
-              <div className="flex flex-wrap items-center gap-2">
-                <button className={`${btn} inline-flex items-center gap-1.5`} disabled={busy}>
-                  <FiPlay className="size-4" /> {busy ? t("執行中…") : t("執行")}
-                </button>
-                <code className="min-w-0 flex-1 truncate rounded-lg bg-card-soft px-2 py-1 text-xs text-ink-muted">
-                  {maskSteamIdsInText(buildCommand(selected, values))}
-                </code>
+              <div className="grid gap-3 sm:grid-cols-2">
+                {selected.args.map((arg) => (
+                  <ArgField
+                    key={arg.name}
+                    arg={arg}
+                    roster={roster}
+                    gameData={gameData}
+                    value={values[arg.name] ?? ""}
+                    onChange={(value) => setValues((v) => ({ ...v, [arg.name]: value }))}
+                  />
+                ))}
               </div>
-            </form>
+            </div>
           )}
 
-          {/* 原始指令列 */}
+          {/* 唯一的指令輸入列:選了指令會自動帶入,也可自己打 */}
           <form
             className="flex shrink-0 items-center gap-2 rounded-cute border-2 border-line px-3 py-2"
-            onSubmit={(e) => {
-              e.preventDefault();
-              if (!raw.trim()) return;
-              void run(raw.trim());
-              setRaw("");
-            }}
+            onSubmit={submitRaw}
           >
             <FiTerminal className="size-4 shrink-0 text-ink-muted" />
             <input
               className="min-w-0 flex-1 bg-transparent font-mono text-sm outline-none"
               value={raw}
               onChange={(e) => setRaw(e.target.value)}
-              placeholder={selected ? t("或直接輸入原始指令…") : t("輸入原始 RCON 指令,例如 ShowPlayers")}
+              placeholder={t("輸入 RCON 指令,例如 ShowPlayers")}
             />
-            <button className={`${btn} btn-sm shrink-0`} disabled={busy || !raw.trim()}>
-              {t("送出")}
+            <button
+              className={`${btn} btn-sm inline-flex shrink-0 items-center gap-1.5`}
+              disabled={busy || !raw.trim()}
+            >
+              <FiPlay className="size-3.5" /> {busy ? t("執行中…") : t("執行")}
             </button>
           </form>
 
-          {/* 輸出:撐滿剩餘高度,單一捲軸 */}
-          <div className="flex min-h-0 flex-1 flex-col gap-1.5">
-            <div className="flex shrink-0 items-center justify-between">
-              <h3 className="text-xs font-extrabold text-ink-muted">{t("輸出")}</h3>
-              {log.length > 0 && (
+          {/* 輸出:有跑過指令才顯示,撐滿剩餘高度 */}
+          {log.length > 0 && (
+            <div className="flex min-h-0 flex-1 flex-col gap-1.5">
+              <div className="flex shrink-0 items-center justify-between">
+                <h3 className="text-xs font-extrabold text-ink-muted">{t("輸出")}</h3>
                 <button
                   className="text-ink-muted transition hover:text-berry"
                   onClick={() => setLog([])}
@@ -416,24 +412,22 @@ export function ConsoleTab({ client, instanceId }: { client: AgentClient; instan
                 >
                   <FiTrash2 className="size-4" />
                 </button>
-              )}
-            </div>
-            <pre className="min-h-32 flex-1 overflow-auto rounded-xl bg-[#1c1927] p-3 font-mono text-xs whitespace-pre-wrap break-all text-[#cfd6df]">
-              {log.length === 0
-                ? t("(尚未執行任何指令)")
-                : log.map((entry, i) => (
-                    <span key={i}>
-                      <span className="text-[#7ec8f0]">&gt; {maskSteamIdsInText(entry.command)}</span>
-                      {"\n"}
-                      <span className={entry.failed ? "text-[#ef6a6a]" : undefined}>
-                        {maskSteamIdsInText(entry.output)}
-                      </span>
-                      {"\n\n"}
+              </div>
+              <pre className="min-h-24 flex-1 overflow-auto rounded-xl bg-[#1c1927] p-3 font-mono text-xs whitespace-pre-wrap break-all text-[#cfd6df]">
+                {log.map((entry, i) => (
+                  <span key={i}>
+                    <span className="text-[#7ec8f0]">&gt; {maskSteamIdsInText(entry.command)}</span>
+                    {"\n"}
+                    <span className={entry.failed ? "text-[#ef6a6a]" : undefined}>
+                      {maskSteamIdsInText(entry.output)}
                     </span>
-                  ))}
-              <div ref={bottomRef} />
-            </pre>
-          </div>
+                    {"\n\n"}
+                  </span>
+                ))}
+                <div ref={bottomRef} />
+              </pre>
+            </div>
+          )}
         </div>
       </div>
 
