@@ -26,38 +26,10 @@ import { PerformanceTab } from "./PerformanceTab";
 import { EngineTab } from "./EngineTab";
 import { maskSteamIdsInText } from "./SteamId";
 import { STATUS_LABELS } from "./labels";
+import { TABS, LOCKED_TABS, useHiddenTabs, type Tab } from "./tabPrefs";
 import { t, t as translate, useI18n } from "./i18n";
 import { Overlay, StatusBadge, btn, btnGhost, card, errorCls } from "./ui";
 
-type Tab =
-  | "overview"
-  | "performance"
-  | "players"
-  | "map"
-  | "settings"
-  | "engine"
-  | "mods"
-  | "paldefender"
-  | "palstats"
-  | "saves"
-  | "restart"
-  | "instance"
-  | "logs";
-const TABS: { id: Tab; label: string }[] = [
-  { id: "overview", label: "總覽" },
-  { id: "performance", label: "效能分析" },
-  { id: "players", label: "玩家" },
-  { id: "map", label: "線上地圖" },
-  { id: "settings", label: "世界設定" },
-  { id: "engine", label: "引擎微調" },
-  { id: "mods", label: "模組" },
-  { id: "paldefender", label: "PalDefender" },
-  { id: "palstats", label: "物種數值" },
-  { id: "saves", label: "存檔備份" },
-  { id: "restart", label: "伺服器重啟" },
-  { id: "instance", label: "設定" },
-  { id: "logs", label: "日誌" },
-];
 
 export function InstanceDetailPage({
   client,
@@ -73,6 +45,11 @@ export function InstanceDetailPage({
   useI18n();
   const [detail, setDetail] = useState<Detail | null>(null);
   const [tab, setTab] = useState<Tab>("overview");
+  const [hiddenTabs] = useHiddenTabs();
+  // 若目前分頁被使用者在設定裡藏起來,退回總覽,避免停在看不見的分頁。
+  useEffect(() => {
+    if (!LOCKED_TABS.includes(tab) && hiddenTabs.includes(tab)) setTab("overview");
+  }, [hiddenTabs, tab]);
   const [showConsole, setShowConsole] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -282,6 +259,7 @@ export function InstanceDetailPage({
       <div className="flex flex-wrap gap-x-2 gap-y-1 border-b-2 border-line">
         {TABS.filter((t) => t.id !== "paldefender" || palDefender)
           .filter((t) => t.id !== "palstats" || SHOW_SPONSOR_FEATURES)
+          .filter((t) => LOCKED_TABS.includes(t.id) || !hiddenTabs.includes(t.id))
           .map((t) => (
           <button
             key={t.id}
