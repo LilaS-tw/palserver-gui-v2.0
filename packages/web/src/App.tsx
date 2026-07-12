@@ -2,6 +2,23 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { GiSheep, GiEggClutch } from "react-icons/gi";
 import { FiDownload, FiHeart, FiHelpCircle, FiPlus, FiSettings, FiAlertTriangle } from "react-icons/fi";
 import type { Backend, InstanceSummary } from "@palserver/shared";
+import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  KeyboardSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  rectSortingStrategy,
+  arrayMove,
+  useSortable,
+  sortableKeyboardCoordinates,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { AgentClient, loadConnection, saveConnection, type Connection } from "./api";
 import { usePromoConfig } from "./promoConfig";
 import { MapTab } from "./MapTab";
@@ -13,7 +30,7 @@ import { Mascot } from "./Mascot";
 import { AnnouncementPopup } from "./AnnouncementModal";
 import { OPEN_SETTINGS_EVENT, SiteFooter } from "./SiteFooter";
 import { ThemeToggle } from "./theme";
-import { LangSelect, useI18n } from "./i18n";
+import { LangSelect, useI18n, t as translate } from "./i18n";
 import { Overlay, Select, StatusBadge, btn, btnGhost, card, errorCls, inputCls, labelCls } from "./ui";
 
 export default function App() {
@@ -168,20 +185,19 @@ function Dashboard({ client, onOpen }: { client: AgentClient; onOpen: (id: strin
   const [error, setError] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [order, setOrder] = useState<string[]>(loadInstanceOrder);
-  const [dragId, setDragId] = useState<string | null>(null);
-  const [overId, setOverId] = useState<string | null>(null);
 
   const ordered = instances ? sortByOrder(instances, order) : [];
-  // 把某張卡拖到另一張卡的位置:重排 id 陣列並存檔。
-  const reorder = (fromId: string, toId: string) => {
-    if (fromId === toId) return;
+  // 拖曳需要移動 8px 才啟動,讓「單純點擊卡片」照樣開啟該伺服器;鍵盤也能排序(無障礙)。
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+  const handleDragEnd = ({ active, over }: DragEndEvent) => {
+    if (!over || active.id === over.id) return;
     const ids = ordered.map((i) => i.id);
-    const from = ids.indexOf(fromId);
-    const to = ids.indexOf(toId);
-    if (from < 0 || to < 0) return;
-    ids.splice(to, 0, ids.splice(from, 1)[0]);
-    setOrder(ids);
-    saveInstanceOrder(ids);
+    const next = arrayMove(ids, ids.indexOf(String(active.id)), ids.indexOf(String(over.id)));
+    setOrder(next);
+    saveInstanceOrder(next);
   };
 
   const refresh = useCallback(async () => {
@@ -225,55 +241,15 @@ function Dashboard({ client, onOpen }: { client: AgentClient; onOpen: (id: strin
           {t("還沒有伺服器,建立第一個吧!")}
         </div>
       ) : (
-        <div className="grid grid-cols-[repeat(auto-fill,minmax(290px,1fr))] gap-3.5">
-          {ordered.map((inst) => (
-            <button
-              className={`${card} cursor-grab text-left transition hover:-translate-y-0.5 hover:shadow-(--shadow-cute-hover) active:cursor-grabbing ${
-                dragId === inst.id ? "opacity-40" : ""
-              } ${overId === inst.id && dragId && dragId !== inst.id ? "ring-2 ring-pal ring-offset-2 ring-offset-bg" : ""}`}
-              key={inst.id}
-              draggable
-              onDragStart={(e) => {
-                setDragId(inst.id);
-                e.dataTransfer.effectAllowed = "move";
-              }}
-              onDragOver={(e) => {
-                e.preventDefault();
-                if (dragId && overId !== inst.id) setOverId(inst.id);
-              }}
-              onDrop={(e) => {
-                e.preventDefault();
-                if (dragId) reorder(dragId, inst.id);
-                setDragId(null);
-                setOverId(null);
-              }}
-              onDragEnd={() => {
-                setDragId(null);
-                setOverId(null);
-              }}
-              onClick={() => onOpen(inst.id)}
-            >
-              <div className="flex items-center justify-between gap-2">
-                <strong className="text-base font-extrabold">{inst.name}</strong>
-                <StatusBadge status={inst.status} />
-              </div>
-              <p className="mt-1 text-[13px] text-ink-muted">
-                {inst.enhancements.length > 0 ? t("強化") : t("原味")} · UDP {inst.gamePort}
-                {inst.gameVersion && ` · ${inst.gameVersion}`}
-              </p>
-              {inst.updateAvailable && (
-                <p className="mt-2 inline-flex items-center gap-1.5 rounded-full border-[1.5px] border-sun/40 bg-sun/15 px-2.5 py-1 text-xs font-bold text-sun">
-                  <FiDownload className="size-3.5" /> {t("有新版本可更新")}
-                </p>
-              )}
-              {inst.installError && (
-                <p className="mt-2 inline-flex items-center gap-1.5 rounded-full border-[1.5px] border-berry/40 bg-berry/10 px-2.5 py-1 text-xs font-bold text-berry">
-                  <FiAlertTriangle className="size-3.5" /> {t("安裝失敗")}
-                </p>
-              )}
-            </button>
-          ))}
-        </div>
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+          <SortableContext items={ordered.map((i) => i.id)} strategy={rectSortingStrategy}>
+            <div className="grid grid-cols-[repeat(auto-fill,minmax(290px,1fr))] gap-3.5">
+              {ordered.map((inst) => (
+                <SortableServerCard key={inst.id} inst={inst} onOpen={onOpen} />
+              ))}
+            </div>
+          </SortableContext>
+        </DndContext>
       )}
       {showCreate && (
         <CreateDialog
@@ -286,6 +262,46 @@ function Dashboard({ client, onOpen }: { client: AgentClient; onOpen: (id: strin
         />
       )}
     </>
+  );
+}
+
+/** 單張可拖曳排序的伺服器卡片(@dnd-kit)。整張卡是拖曳把手,單純點擊仍會開啟。 */
+function SortableServerCard({ inst, onOpen }: { inst: InstanceSummary; onOpen: (id: string) => void }) {
+  useI18n(); // 語言切換時重繪
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: inst.id,
+  });
+  const style = { transform: CSS.Transform.toString(transform), transition };
+  return (
+    <button
+      ref={setNodeRef}
+      style={style}
+      {...attributes}
+      {...listeners}
+      className={`${card} touch-none cursor-grab text-left transition-shadow hover:shadow-(--shadow-cute-hover) active:cursor-grabbing ${
+        isDragging ? "z-10 opacity-60 shadow-(--shadow-cute-hover)" : ""
+      }`}
+      onClick={() => onOpen(inst.id)}
+    >
+      <div className="flex items-center justify-between gap-2">
+        <strong className="text-base font-extrabold">{inst.name}</strong>
+        <StatusBadge status={inst.status} />
+      </div>
+      <p className="mt-1 text-[13px] text-ink-muted">
+        {inst.enhancements.length > 0 ? translate("強化") : translate("原味")} · UDP {inst.gamePort}
+        {inst.gameVersion && ` · ${inst.gameVersion}`}
+      </p>
+      {inst.updateAvailable && (
+        <p className="mt-2 inline-flex items-center gap-1.5 rounded-full border-[1.5px] border-sun/40 bg-sun/15 px-2.5 py-1 text-xs font-bold text-sun">
+          <FiDownload className="size-3.5" /> {translate("有新版本可更新")}
+        </p>
+      )}
+      {inst.installError && (
+        <p className="mt-2 inline-flex items-center gap-1.5 rounded-full border-[1.5px] border-berry/40 bg-berry/10 px-2.5 py-1 text-xs font-bold text-berry">
+          <FiAlertTriangle className="size-3.5" /> {translate("安裝失敗")}
+        </p>
+      )}
+    </button>
   );
 }
 
