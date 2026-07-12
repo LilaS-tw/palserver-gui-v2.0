@@ -17,7 +17,7 @@
   --color-berry: #ef6a6a; /* danger */
   --color-sun: #f2b64f; /* warning */
   --color-sponsor: #ec5f9e; /* 捐款 / 贊助我們 CTA — 粉紅 */
-  --color-premium: #9b7fe0; /* 贊助者先行版功能標示 — 淡紫(premium) */
+  --color-premium: #d4a63c; /* 贊助者先行版功能標示 — 古銅金(premium);與警告黃 sun 區隔 */
   --color-line: #dcebf3;
 
   --radius-cute: 18px;
@@ -64,6 +64,41 @@
   --color-line: #403c52;
   --shadow-cute: 0 6px 18px rgb(0 0 0 / 0.35);
   --shadow-cute-hover: 0 10px 24px rgb(0 0 0 / 0.45);
+}
+
+/* ── 贊助者專屬主題:Midnight Gold(金 × 漸層)。只有有效贊助者可在設定頁選用。 ── */
+:root[data-theme="sponsor"] {
+  color-scheme: dark;
+  --color-sky-soft: #17130f; /* 暖炭黑 */
+  --color-card: #241d16;
+  --color-card-soft: #2e2519;
+  --color-ink: #f4eee2;
+  --color-ink-muted: #b8ac93;
+  --color-pal: #e0b64f; /* 主色改金 */
+  --color-pal-strong: #f0ca6a;
+  --color-line: #3d3320;
+  --color-premium: #f0cf8a; /* 深底上的標示金再亮一階 */
+  --shadow-cute: 0 8px 22px rgb(0 0 0 / 0.55);
+  --shadow-cute-hover: 0 12px 30px rgb(0 0 0 / 0.65);
+}
+/* 頁面背景:若隱若現的金色光暈(固定,不隨捲動) */
+:root[data-theme="sponsor"] body {
+  background-color: #17130f;
+  background-image:
+    radial-gradient(1200px 620px at 12% -12%, rgb(224 182 79 / 0.12), transparent 60%),
+    radial-gradient(1000px 560px at 100% 0%, rgb(201 146 46 / 0.09), transparent 55%);
+  background-attachment: fixed;
+}
+/* 主色按鈕 / 強調(bg-pal):金色斜向漸層 + hover 微亮 */
+:root[data-theme="sponsor"] .bg-pal {
+  background-image: linear-gradient(135deg, #e6bd5a 0%, #c9922e 100%);
+}
+:root[data-theme="sponsor"] .bg-pal:hover {
+  background-image: linear-gradient(135deg, #f2cd72 0%, #d6a03a 100%);
+}
+/* 卡片頂緣:一條若隱若現的金色 sheen */
+:root[data-theme="sponsor"] .bg-card {
+  background-image: linear-gradient(180deg, rgb(224 182 79 / 0.07), rgb(224 182 79 / 0) 96px);
 }
 
 body {

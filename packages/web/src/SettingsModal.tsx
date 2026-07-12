@@ -7,6 +7,7 @@ import { PrivacyModal } from "./PrivacyModal";
 import { UpdateCard } from "./UpdateCard";
 import { useI18n } from "./i18n";
 import { SHOW_SPONSOR_FEATURES } from "./flags";
+import { loadThemeMode, setThemeMode, type ThemeMode } from "./theme";
 import { Overlay, card, btn, btnGhost } from "./ui";
 
 /**
@@ -33,6 +34,7 @@ export function SettingsModal({
   const [lic, setLic] = useState<LicenseStatus | null>(null);
   const [licInput, setLicInput] = useState("");
   const [licBusy, setLicBusy] = useState(false);
+  const [themeMode, setThemeModeLocal] = useState<ThemeMode>(loadThemeMode);
 
   useEffect(() => {
     client.pairingCode().then((r) => setCode(r.pairingCode)).catch(() => setCode(null));
@@ -217,6 +219,22 @@ export function SettingsModal({
                 <button className={`${btnGhost} inline-flex w-fit items-center gap-1.5`} onClick={clearLicense} disabled={licBusy}>
                   <FiTrash2 className="size-4" /> {t("移除識別碼")}
                 </button>
+                {lic.valid && (
+                  <label className="mt-1 flex items-center gap-2 text-[13px] font-bold text-ink-muted">
+                    <input
+                      type="checkbox"
+                      className="accent-premium"
+                      checked={themeMode === "sponsor"}
+                      onChange={(e) => {
+                        const next: ThemeMode = e.target.checked ? "sponsor" : "auto";
+                        setThemeMode(next);
+                        setThemeModeLocal(next);
+                      }}
+                    />
+                    <FiStar className="size-3.5 text-premium" />
+                    {t("啟用贊助者專屬主題 Midnight Gold(金色 × 漸層)")}
+                  </label>
+                )}
               </div>
             ) : (
               <div className="mt-2 flex flex-wrap items-center gap-2">

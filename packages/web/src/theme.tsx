@@ -9,14 +9,16 @@ import { useI18n } from "./i18n";
  * 選擇存 localStorage,main.tsx 在 React 掛載前先套用,避免閃色。
  */
 
-export type ThemeMode = "auto" | "light" | "dark";
+/** auto/light/dark 是深淺色;sponsor 是贊助者專屬主題(Midnight Gold),
+ *  只在 SettingsModal 對有效贊助者開放選用。 */
+export type ThemeMode = "auto" | "light" | "dark" | "sponsor";
 
 const KEY = "palserver.theme";
 
 export function loadThemeMode(): ThemeMode {
   try {
     const v = localStorage.getItem(KEY);
-    return v === "light" || v === "dark" ? v : "auto";
+    return v === "light" || v === "dark" || v === "sponsor" ? v : "auto";
   } catch {
     return "auto";
   }
@@ -25,6 +27,17 @@ export function loadThemeMode(): ThemeMode {
 export function applyThemeMode(mode: ThemeMode): void {
   if (mode === "auto") delete document.documentElement.dataset.theme;
   else document.documentElement.dataset.theme = mode;
+}
+
+/** 套用並記住主題選擇(給 SettingsModal 的贊助者主題開關用)。 */
+export function setThemeMode(mode: ThemeMode): void {
+  applyThemeMode(mode);
+  try {
+    if (mode === "auto") localStorage.removeItem(KEY);
+    else localStorage.setItem(KEY, mode);
+  } catch {
+    /* 無痕模式存不進去就只作用這一次 */
+  }
 }
 
 /**
