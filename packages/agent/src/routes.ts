@@ -3,10 +3,12 @@ import {
   COMMANDS,
   ENGINE_OPTIONS,
   PALDEFENDER_OPTIONS,
+  PD_MOTD_MAX_LEN,
+  PD_MOTD_MAX_LINES,
   PAL_STAT_KEYS,
   PAL_STAT_OPTIONS,
   type EngineSettings,
-  type PalDefenderConfig,
+  type PalDefenderConfigPatch,
   type PalStatValues,
   CreateInstanceSchema,
   CustomPalSchema,
@@ -920,6 +922,32 @@ export function registerRoutes(
     return { output };
   });
 
+  // 傳送玩家(贊助者先行版 teleport):PalDefender `tp <來源> <目標玩家|x y z>`。
+  app.post("/api/instances/:id/teleport", async (req, reply) => {
+    if (!featureEnabled("teleport")) {
+      return reply
+        .code(403)
+        .send({ error: "此功能為贊助者先行版,請在設定頁輸入贊助者識別碼解鎖。" });
+    }
+    const rec = getOr404((req.params as { id: string }).id);
+    if (rec.backend !== "native") {
+      return reply.code(409).send({ error: "傳送玩家目前僅支援原生模式的實例" });
+    }
+    if (!getModsStatus(rec, ctxOf(rec)).paldefender.installed) {
+      return reply.code(409).send({ error: "需要先安裝 PalDefender 才能使用傳送" });
+    }
+    requireRcon(rec);
+    const { source, target } = z
+      .object({
+        source: z.string().trim().regex(/^[A-Za-z0-9_]+$/).max(128),
+        // 目標:玩家 UserId 或座標「x y [z]」(允許數字、負號、小數、空白)。
+        target: z.string().trim().min(1).max(128).regex(/^[A-Za-z0-9_.\- ]+$/),
+      })
+      .parse(req.body);
+    const output = await rconExec(rec, `tp ${source} ${target}`);
+    return { output };
+  });
+
   // ── PalDefender Config.json ──
   app.get("/api/instances/:id/paldefender-config", async (req) => {
     const rec = getOr404((req.params as { id: string }).id);
@@ -935,8 +963,14 @@ export function registerRoutes(
         return [key, num.min(meta.min).max(meta.max).optional()];
       }),
     );
-    const patch = z.object(shape).strict().parse(req.body);
-    const status = writePalDefenderConfig(rec, ctxOf(rec), patch as PalDefenderConfig);
+    const patch = z
+      .object({
+        ...shape,
+        motd: z.array(z.string().max(PD_MOTD_MAX_LEN)).max(PD_MOTD_MAX_LINES).optional(),
+      })
+      .strict()
+      .parse(req.body);
+    const status = writePalDefenderConfig(rec, ctxOf(rec), patch as PalDefenderConfigPatch);
     // Try to hot-apply without a restart; harmless if RCON is off.
     await rconExec(rec, "reloadcfg").catch(() => {});
     return { ...status, applied: "reloaded" };

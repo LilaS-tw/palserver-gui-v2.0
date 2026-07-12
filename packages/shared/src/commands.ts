@@ -173,25 +173,9 @@ export const COMMANDS: CommandSpec[] = [
     label: "設定世界時間",
     args: [{ name: "hour", label: "時間", required: true, placeholder: "0-23 / day / night" }],
   },
-  {
-    // PalDefender tp:第一參數=來源玩家,第二=目標玩家或座標(x y z)。
-    //   tp <來源> <目標玩家>      → 把來源玩家傳到目標玩家所在
-    //   tp <來源> <x> <y> <z>     → 把來源玩家傳到座標(空白分隔,直接打進目標欄)
-    name: "tp",
-    source: "paldefender",
-    category: "players",
-    label: "傳送玩家到玩家 / 座標",
-    args: [
-      { name: "source", label: "要傳送的玩家", required: true, player: true },
-      {
-        name: "target",
-        label: "目標玩家 / 座標",
-        required: true,
-        player: true,
-        placeholder: "選玩家,或輸入座標 x y z(如 100 50 200)",
-      },
-    ],
-  },
+  // tp(傳送玩家)改為贊助者先行版的專屬 modal(TeleportModal + POST /teleport),
+  // 不放在一般指令清單裡。底層一樣走 PalDefender `tp <來源> <目標玩家|x y z>`。
+
   {
     name: "give_exp",
     source: "paldefender",

@@ -15,6 +15,7 @@ import { EntityPicker } from "./EntityPicker";
 import { PlayerPicker } from "./PlayerPicker";
 import { CustomPalModal } from "./CustomPalModal";
 import { GiveItemsModal } from "./GiveItemsModal";
+import { TeleportModal } from "./TeleportModal";
 import { MapPickModal } from "./MapPickModal";
 import { SHOW_SPONSOR_FEATURES } from "./flags";
 import { useGameData, itemIconUrl, palIconUrl, type GameData } from "./gameData";
@@ -178,6 +179,7 @@ export function ConsoleTab({
   const [error, setError] = useState<string | null>(null);
   const [customPalMode, setCustomPalMode] = useState<null | "pal" | "egg">(null);
   const [showGiveItems, setShowGiveItems] = useState(false);
+  const [showTeleport, setShowTeleport] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   const [roster, setRoster] = useState<KnownPlayer[]>([]);
@@ -354,6 +356,16 @@ export function ConsoleTab({
                 </span>
                 <span className="block text-xs text-ink-muted">{t("批量給予道具(選單 + 數量)")}</span>
               </button>
+              <button
+                type="button"
+                className="shrink-0 rounded-lg px-2 py-1.5 text-left text-[13px] transition hover:bg-card-soft"
+                onClick={() => setShowTeleport(true)}
+              >
+                <span className="inline-flex items-center gap-1 font-mono text-pal">
+                  tp <FiStar className="size-3" />
+                </span>
+                <span className="block text-xs text-ink-muted">{t("傳送玩家(玩家 / 地圖座標)")}</span>
+              </button>
             </>
           )}
           <div className="min-h-0 flex-1 overflow-y-auto">
@@ -474,6 +486,9 @@ export function ConsoleTab({
       )}
       {showGiveItems && (
         <GiveItemsModal client={client} instanceId={instanceId} onClose={() => setShowGiveItems(false)} />
+      )}
+      {showTeleport && (
+        <TeleportModal client={client} instanceId={instanceId} onClose={() => setShowTeleport(false)} />
       )}
     </div>
   );

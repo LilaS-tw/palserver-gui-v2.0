@@ -4,6 +4,7 @@ import type { AgentClient } from "./api";
 import { ConsoleTab } from "./ConsoleTab";
 import { CustomPalModal } from "./CustomPalModal";
 import { GiveItemsModal } from "./GiveItemsModal";
+import { TeleportModal } from "./TeleportModal";
 import { SHOW_SPONSOR_FEATURES } from "./flags";
 import { t, useI18n } from "./i18n";
 import { Overlay, card, btn, btnGhost } from "./ui";
@@ -16,12 +17,14 @@ const PLAYER_ACTIONS: {
   cmd?: string;
   customPalMode?: "pal" | "egg";
   bulkItems?: boolean;
+  teleport?: boolean;
 }[] = [
   { label: "給予道具", cmd: "give" },
   { label: "給予帕魯", cmd: "givepal" },
   { label: "給予帕魯蛋", cmd: "giveegg" },
   ...(SHOW_SPONSOR_FEATURES
     ? ([
+        { label: "傳送此玩家(贊助者)", teleport: true },
         { label: "批量給予道具(贊助者)", bulkItems: true },
         { label: "給予自訂帕魯(贊助者)", customPalMode: "pal" },
         { label: "給予自訂帕魯蛋(贊助者)", customPalMode: "egg" },
@@ -52,6 +55,7 @@ export function PlayerActionsMenu({
   const [actionCmd, setActionCmd] = useState<string | null>(null);
   const [customPalMode, setCustomPalMode] = useState<"pal" | "egg" | null>(null);
   const [showGiveItems, setShowGiveItems] = useState(false);
+  const [showTeleport, setShowTeleport] = useState(false);
 
   return (
     <>
@@ -72,12 +76,13 @@ export function PlayerActionsMenu({
                   className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-[13px] font-bold transition hover:bg-card-soft"
                   onClick={() => {
                     setMenuOpen(false);
-                    if (a.bulkItems) setShowGiveItems(true);
+                    if (a.teleport) setShowTeleport(true);
+                    else if (a.bulkItems) setShowGiveItems(true);
                     else if (a.customPalMode) setCustomPalMode(a.customPalMode);
                     else if (a.cmd) setActionCmd(a.cmd);
                   }}
                 >
-                  {a.customPalMode || a.bulkItems ? (
+                  {a.customPalMode || a.bulkItems || a.teleport ? (
                     <FiStar className="size-4 text-pal" />
                   ) : (
                     <FiTerminal className="size-4 text-ink-muted" />
@@ -131,6 +136,14 @@ export function PlayerActionsMenu({
           instanceId={instanceId}
           initialUserId={userId}
           onClose={() => setShowGiveItems(false)}
+        />
+      )}
+      {showTeleport && (
+        <TeleportModal
+          client={client}
+          instanceId={instanceId}
+          initialSource={userId}
+          onClose={() => setShowTeleport(false)}
         />
       )}
     </>

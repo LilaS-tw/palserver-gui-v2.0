@@ -308,6 +308,14 @@ export class AgentClient {
     });
   }
 
+  /** 傳送玩家(贊助者先行版):target = 目標玩家 UserId 或座標「x y」。非贊助者回 403。 */
+  teleport(id: string, source: string, target: string): Promise<{ output: string }> {
+    return this.request(`/api/instances/${id}/teleport`, {
+      method: "POST",
+      body: JSON.stringify({ source, target }),
+    });
+  }
+
   live(id: string): Promise<LiveStatus> {
     return this.request(`/api/instances/${id}/live`);
   }
