@@ -1,5 +1,18 @@
 import path from "node:path";
 import os from "node:os";
+import { loadSettings } from "./settings.js";
+
+/** GUI 面板寫入的設定(env > settings.json > 預設)。有設環境變數的欄位以 env 為準。 */
+const S = loadSettings();
+const envSet = (k: string) => process.env[k] !== undefined;
+/** 哪些欄位「由環境變數鎖定」(面板會顯示為不可改的灰化狀態)。 */
+export const ENV_LOCKED = {
+  requireToken: envSet("PALSERVER_REQUIRE_TOKEN"),
+  tls: envSet("PALSERVER_TLS"),
+  agentPort: envSet("PALSERVER_AGENT_PORT"),
+  agentHost: envSet("PALSERVER_AGENT_HOST"),
+  webOrigins: envSet("PALSERVER_WEB_ORIGINS"),
+};
 
 /**
  * 版本字串。release 打包時由 bundle-agent.mjs 依 git tag 用 esbuild define 注入
@@ -12,23 +25,27 @@ export const DATA_DIR = process.env.PALSERVER_DATA_DIR
   ? path.resolve(process.env.PALSERVER_DATA_DIR)
   : path.join(os.homedir(), ".palserver-agent");
 
-export const PORT = Number(process.env.PALSERVER_AGENT_PORT ?? 8250);
-export const HOST = process.env.PALSERVER_AGENT_HOST ?? "0.0.0.0";
+export const PORT = Number(process.env.PALSERVER_AGENT_PORT ?? S.agentPort ?? 8250);
+export const HOST = process.env.PALSERVER_AGENT_HOST ?? S.agentHost ?? "0.0.0.0";
 
-/** 預設連本機(loopback)免 token;多使用者主機設 =1 強制一律要 token。 */
-export const REQUIRE_TOKEN = process.env.PALSERVER_REQUIRE_TOKEN === "1";
+/** 預設連本機(loopback)免 token;設 =1(或面板開啟)強制一律要 token。 */
+export const REQUIRE_TOKEN = ENV_LOCKED.requireToken
+  ? process.env.PALSERVER_REQUIRE_TOKEN === "1"
+  : (S.requireToken ?? false);
 
 /**
  * 允許跨源連線的網站來源(逗號分隔)。同源(合一版)與本機各埠一律允許,不必列;
  * 這裡是給「純 web 公開站」用的,例如 https://palserver-gui.example.com。
  */
-export const WEB_ORIGINS = (process.env.PALSERVER_WEB_ORIGINS ?? "")
+export const WEB_ORIGINS = (process.env.PALSERVER_WEB_ORIGINS ?? S.webOrigins ?? "")
   .split(",")
   .map((s) => s.trim())
   .filter(Boolean);
 
-/** 設 =1 以 HTTPS 監聽(自簽憑證自動生成於 data-dir/tls,或放自己的憑證進去)。 */
-export const TLS_ENABLED = process.env.PALSERVER_TLS === "1";
+/** 設 =1(或面板開啟)以 HTTPS 監聽(自簽憑證自動生成於 data-dir/tls,或放自己的憑證進去)。 */
+export const TLS_ENABLED = ENV_LOCKED.tls
+  ? process.env.PALSERVER_TLS === "1"
+  : (S.tls ?? false);
 
 /** 是否以「免安裝執行檔」執行(玩家雙擊的那顆),而非開發模式的 node/tsx。
  *  判斷依據:execPath 的檔名就是我們的執行檔;開發時它會是 node 或 tsx。 */

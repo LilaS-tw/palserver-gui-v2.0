@@ -1027,5 +1027,19 @@
  "淺色": "Light",
  "深色": "Dark",
  "贊助": "Sponsor",
- "白銀 / 翡翠為贊助者專屬主題,請在下方輸入贊助者識別碼解鎖。": "Silver / Emerald are sponsor-exclusive themes. Enter your sponsor code below to unlock them."
+ "白銀 / 翡翠為贊助者專屬主題,請在下方輸入贊助者識別碼解鎖。": "Silver / Emerald are sponsor-exclusive themes. Enter your sponsor code below to unlock them.",
+ "安全 / 網路設定(進階)": "Security / network (advanced)",
+ "改動需重啟 agent 才生效。由環境變數設定的項目以環境變數為準,無法在此修改。": "Changes take effect after restarting the agent. Fields set by an environment variable are controlled by it and can't be changed here.",
+ "強制要求識別碼(本機也要)": "Always require a code (even on localhost)",
+ "(由環境變數鎖定)": "(locked by environment variable)",
+ "透過 Cloudflare Tunnel / 反向代理對外曝露時務必開啟,否則任何連得到的人都能無密碼管理。": "Turn this on when exposing the agent via Cloudflare Tunnel / a reverse proxy — otherwise anyone who reaches it can manage it without a password.",
+ "以 HTTPS 監聽": "Listen over HTTPS",
+ "自簽憑證會自動生成於 data-dir/tls;也可放自己的憑證進去。": "A self-signed certificate is generated in data-dir/tls; you can drop in your own instead.",
+ "監聽埠": "Port",
+ "監聽位址": "Bind address",
+ "允許的公開站來源(逗號分隔;純 web 版才需要)": "Allowed public site origins (comma-separated; web-only build)",
+ "重啟中…": "Restarting…",
+ "重啟 agent 套用": "Restart agent to apply",
+ "已儲存,請手動重啟 agent 才會生效。": "Saved — restart the agent manually for it to take effect.",
+ "已儲存": "Saved"
 }

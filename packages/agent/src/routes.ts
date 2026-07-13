@@ -28,7 +28,9 @@ import { fetchServerCommands, rconExec, requireRcon } from "./rcon.js";
 import type { PresenceTracker } from "./presence.js";
 import type { BackupScheduler } from "./backup-scheduler.js";
 import type { RestartSupervisor } from "./supervisor.js";
-import { AGENT_VERSION } from "./env.js";
+import { AGENT_VERSION, PORT, HOST, REQUIRE_TOKEN, WEB_ORIGINS, TLS_ENABLED, ENV_LOCKED, IS_PORTABLE_EXE } from "./env.js";
+import { saveSettings } from "./settings.js";
+import { restartSelf } from "./self-update.js";
 import {
   type AuthContext,
   extractToken,
@@ -234,6 +236,40 @@ export function registerRoutes(
   app.put("/api/telemetry", async (req) => {
     const { enabled } = z.object({ enabled: z.boolean() }).parse(req.body);
     return setTelemetryEnabled(enabled);
+  });
+
+  // 系統 / 網路設定:可從面板改,寫進 data-dir/settings.json,重啟 agent 後生效。
+  // 每欄 envLocked=true 表示被環境變數鎖定(env > settings.json),面板顯示為灰化不可改。
+  app.get("/api/settings", async () => ({
+    requireToken: { value: REQUIRE_TOKEN, envLocked: ENV_LOCKED.requireToken },
+    tls: { value: TLS_ENABLED, envLocked: ENV_LOCKED.tls },
+    agentPort: { value: PORT, envLocked: ENV_LOCKED.agentPort },
+    agentHost: { value: HOST, envLocked: ENV_LOCKED.agentHost },
+    webOrigins: { value: WEB_ORIGINS.join(","), envLocked: ENV_LOCKED.webOrigins },
+    canRestart: IS_PORTABLE_EXE,
+  }));
+  app.put("/api/settings", async (req) => {
+    const b = z
+      .object({
+        requireToken: z.boolean().optional(),
+        tls: z.boolean().optional(),
+        agentPort: z.number().int().min(1).max(65535).optional(),
+        agentHost: z.string().max(64).optional(),
+        webOrigins: z.string().max(2000).optional(),
+      })
+      .parse(req.body);
+    saveSettings(b);
+    return { ok: true };
+  });
+  // 套用系統設定:重啟自己(免安裝執行檔才會真的重啟;開發模式回 restarting:false)。
+  app.post("/api/restart", async () => {
+    if (IS_PORTABLE_EXE) {
+      setTimeout(() => {
+        void app.close().catch(() => {});
+        restartSelf();
+      }, 400);
+    }
+    return { restarting: IS_PORTABLE_EXE };
   });
 
   // 贊助者識別碼(先行版授權):填碼 -> 立即向 worker 啟用/驗證;一碼綁一台。

@@ -406,6 +406,15 @@ async function run({ canApply, onRestart, log }: UpdateOps): Promise<void> {
   }
 }
 
+/** 重啟自己(給「儲存系統設定後套用」用)。只在免安裝執行檔有意義;
+ *  開發模式(execPath 是 node)不做,交由使用者手動重啟。 */
+export function restartSelf(): boolean {
+  const base = path.basename(process.execPath).toLowerCase();
+  if (base !== "palserver-agent" && base !== "palserver-agent.exe") return false;
+  respawn(process.execPath);
+  return true;
+}
+
 /** 用同樣的參數重新啟動自己,然後讓舊行程退場。 */
 function respawn(exePath: string): void {
   const child = spawn(exePath, process.argv.slice(2), {

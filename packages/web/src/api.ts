@@ -58,6 +58,28 @@ export interface TelemetryStatus {
   installId: string;
 }
 
+/** 系統/網路設定的單一欄位:目前生效值 + 是否被環境變數鎖定。 */
+export interface AgentSettingField<T> {
+  value: T;
+  envLocked: boolean;
+}
+export interface AgentSettingsStatus {
+  requireToken: AgentSettingField<boolean>;
+  tls: AgentSettingField<boolean>;
+  agentPort: AgentSettingField<number>;
+  agentHost: AgentSettingField<string>;
+  webOrigins: AgentSettingField<string>;
+  /** 免安裝執行檔可一鍵重啟;開發模式為 false(需手動重啟)。 */
+  canRestart: boolean;
+}
+export interface AgentSettingsPatch {
+  requireToken?: boolean;
+  tls?: boolean;
+  agentPort?: number;
+  agentHost?: string;
+  webOrigins?: string;
+}
+
 export interface ConfigSnapshotResult {
   supported: boolean;
   reason?: string;
@@ -181,6 +203,18 @@ export class AgentClient {
 
   setTelemetry(enabled: boolean): Promise<TelemetryStatus> {
     return this.request("/api/telemetry", { method: "PUT", body: JSON.stringify({ enabled }) });
+  }
+
+  /** 系統 / 網路設定(對應 GET/PUT /api/settings)。改動寫進 agent 的 settings.json,重啟後生效。 */
+  agentSettings(): Promise<AgentSettingsStatus> {
+    return this.request("/api/settings");
+  }
+  saveAgentSettings(patch: AgentSettingsPatch): Promise<{ ok: boolean }> {
+    return this.request("/api/settings", { method: "PUT", body: JSON.stringify(patch) });
+  }
+  /** 重啟 agent 以套用系統設定;restarting=false 表示開發模式,需手動重啟。 */
+  restartAgent(): Promise<{ restarting: boolean }> {
+    return this.request("/api/restart", { method: "POST", body: JSON.stringify({}) });
   }
 
   /** 贊助者識別碼(先行版授權)狀態。 */
