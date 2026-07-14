@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { GiSheep, GiEggClutch } from "react-icons/gi";
-import { FiActivity, FiAlertTriangle, FiClock, FiCpu, FiDownload, FiHardDrive, FiHeart, FiHelpCircle, FiHome, FiPlus, FiServer, FiSettings, FiStar, FiSun, FiUsers, FiZap } from "react-icons/fi";
+import { FiActivity, FiAlertTriangle, FiClock, FiCpu, FiDownload, FiHardDrive, FiHeart, FiHelpCircle, FiPlus, FiServer, FiSettings, FiStar, FiUsers, FiZap } from "react-icons/fi";
 import { hasFeature } from "@palserver/shared";
 import type { Backend, ExternalWorldCandidate, InstanceStats, InstanceSummary, LiveStatus } from "@palserver/shared";
 import {
@@ -496,11 +496,9 @@ function SortableServerCard({
                   ? fmtDuration(extra.live.metrics.uptime)
                   : "—"}
             </span>
-            <span className="inline-flex items-center gap-1.5" title={`${translate("遊戲天數")} · ${translate("據點數")}`}>
-              <FiSun className="size-3.5 shrink-0 text-pal" />
-              {extra?.live?.metrics
-                ? `${translate("第 {n} 天", { n: extra.live.metrics.days })} · ${extra.live.metrics.basecampnum} ${translate("據點")}`
-                : "—"}
+            <span className="inline-flex items-center gap-1.5" title={translate("影格時間")}>
+              <FiActivity className="size-3.5 shrink-0 text-pal" />
+              {extra?.live?.metrics ? `${extra.live.metrics.serverframetime.toFixed(1)} ms` : "—"}
             </span>
         </div>
       )}
