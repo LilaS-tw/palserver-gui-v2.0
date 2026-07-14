@@ -377,9 +377,7 @@ export class RestartSupervisor {
     state.wasRunning = running;
     state.memoryStreak = 0;
     if (running) {
-      const now = new Date().toISOString();
-      state.lastScheduledAt = now;
-      state.lastStartAt = now;
+      state.lastStartAt = new Date().toISOString();
     }
     this.writeState(id, state);
   }

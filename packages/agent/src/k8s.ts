@@ -85,6 +85,12 @@ export const k8sDriver: ServerDriver = {
     const statefulSet = rec.k8sStatefulSet!;
     const kc = loadKubeConfig();
     const appsApi = kc.makeApiClient(k8s.AppsV1Api);
+
+    // Sync store settings to STS env before scaling up — this is where
+    // settings changes (PUT /settings) take effect, on manual restart.
+    const { applyEnvPatchK8s } = await import("./k8s-env-patch.js");
+    await applyEnvPatchK8s(rec, rec.settings).catch(() => {});
+
     const patch = { spec: { replicas: 1 } };
     await appsApi.patchNamespacedStatefulSetScale(
       { name: statefulSet, namespace, body: patch },

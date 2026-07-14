@@ -516,25 +516,9 @@ export function registerRoutes(
       dockerOps.writeConfig(store.instanceDir(rec.id), updated.settings);
       return { applied: "on-next-restart", settings: updated.settings };
     }
-    // k8s: the game-server image reads settings from env, not ini. PATCH the
-    // StatefulSet env in place; the Pod rolls and picks up the new values.
-    // `restartTriggered` signals the UI that the change is already live.
-    if (rec.backend === "k8s") {
-      const { applyEnvPatchK8s } = await import("./k8s-env-patch.js");
-      const result = await applyEnvPatchK8s(rec, patch);
-      const appliedSettings = Object.fromEntries(
-        Object.entries(patch).filter(([key]) => !result.unsupported.includes(key)),
-      );
-      const updated = store.update(rec.id, {
-        settings: WorldSettingsSchema.parse({ ...rec.settings, ...appliedSettings }),
-      });
-      return {
-        applied: "env-patched",
-        settings: updated.settings,
-        restartTriggered: true,
-        unsupportedKeys: result.unsupported.length > 0 ? result.unsupported : undefined,
-      };
-    }
+    // k8s: settings are applied as STS env on the next manual restart, not
+    // immediately — same as native/docker. The k8s start flow patches env then.
+    // All backends: store only, applied on next restart.
     const updated = store.update(rec.id, { settings: nextSettings });
     return { applied: "on-next-restart", settings: updated.settings };
   });
