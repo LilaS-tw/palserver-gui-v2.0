@@ -107,6 +107,12 @@ export function saveConnection(conn: Connection | null): void {
   else localStorage.removeItem(STORAGE_KEY);
 }
 
+function timeoutSignal(ms: number): AbortSignal {
+  const controller = new AbortController();
+  setTimeout(() => controller.abort(), ms);
+  return controller.signal;
+}
+
 /**
  * 偵測某位址是不是 palserver agent,並回報此請求是否已授權(本機 loopback 會
  * 直接 authenticated=true)。連不到 / 非 agent 回 null。連線畫面用它判斷:
@@ -116,7 +122,7 @@ export async function probeAgent(url: string, token?: string): Promise<AgentInfo
   try {
     const res = await fetch(`${url}/api/info`, {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
-      signal: AbortSignal.timeout(6000),
+      signal: timeoutSignal(6000),
     });
     if (!res.ok) return null;
     const info = (await res.json()) as AgentInfo;
@@ -132,7 +138,7 @@ export async function pairAgent(url: string, code: string): Promise<string> {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ code: code.trim() }),
-    signal: AbortSignal.timeout(6000),
+    signal: timeoutSignal(6000),
   });
   const body = (await res.json().catch(() => ({}))) as { token?: string; error?: string };
   if (!res.ok || !body.token) throw new Error(body.error ?? `HTTP ${res.status}`);
