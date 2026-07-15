@@ -277,7 +277,8 @@ export function InstanceDetailPage({
       {detail.installError && (
         <p className={`${errorCls} inline-flex flex-wrap items-start gap-2`}>
           <FiAlertTriangle className="mt-0.5 size-4 shrink-0" />
-          <span>
+          {/* whitespace-pre-wrap:錯誤訊息可能帶「下載器輸出尾段」多行診斷 */}
+          <span className="whitespace-pre-wrap">
             {t("安裝失敗")}:{" "}
             {detail.installError.code === "disk-full"
               ? t("磁碟空間不足,請清出更多空間後再試(Palworld 伺服器約需數十 GB)。")

@@ -540,7 +540,16 @@ export function updateServer(rec: InstanceRecord, ctx: DriverContext, fresh = fa
   installing.add(rec.id);
   installProgress.set(rec.id, 0);
   installErrors.delete(rec.id); // 新的一次嘗試,清掉上次的失敗
-  const appendLog = (line: string) => fs.appendFileSync(logFile(ctx), line + "\n");
+  // 保留最近的非進度輸出:失敗時直接附進錯誤訊息(agent 日誌已不在 UI 提供,
+  // 使用者看不到 server.log;死因要當場交代,不能叫人翻檔案)
+  const recent: string[] = [];
+  const appendLog = (line: string) => {
+    fs.appendFileSync(logFile(ctx), line + "\n");
+    if (!DD_PROGRESS_RE.test(line)) {
+      recent.push(line);
+      if (recent.length > 15) recent.shift();
+    }
+  };
   void (async () => {
     try {
       fs.mkdirSync(ctx.instanceDir, { recursive: true });
@@ -552,7 +561,13 @@ export function updateServer(rec: InstanceRecord, ctx: DriverContext, fresh = fa
       appendLog("[palserver] 更新完成");
     } catch (err) {
       const info = classifyInstallError(err);
-      installErrors.set(rec.id, info);
+      const tail = recent.slice(-10).join("\n").trim();
+      installErrors.set(
+        rec.id,
+        info.code === "disk-full" || !tail
+          ? info
+          : { ...info, message: `${info.message}\n─ 下載器輸出(尾段)─\n${tail}` },
+      );
       appendLog(
         info.code === "disk-full"
           ? "[palserver] 更新失敗:磁碟空間不足,請清出更多空間後再試(Palworld 伺服器約需數十 GB)。"
@@ -696,13 +711,28 @@ export const nativeDriver: ServerDriver = {
     installing.add(rec.id);
     installProgress.set(rec.id, 0);
     installErrors.delete(rec.id); // 新的一次嘗試,清掉上次的失敗
+    // 同 updateServer:留最近輸出,失敗時附進錯誤訊息(UI 已無 agent 日誌來源)
+    const recent: string[] = [];
+    const installLog = (line: string) => {
+      appendLog(line);
+      if (!DD_PROGRESS_RE.test(line)) {
+        recent.push(line);
+        if (recent.length > 15) recent.shift();
+      }
+    };
     void (async () => {
       try {
-        await ensureInstalled(rec, ctx, appendLog, (pct) => installProgress.set(rec.id, pct));
+        await ensureInstalled(rec, ctx, installLog, (pct) => installProgress.set(rec.id, pct));
         await spawnServer(rec, ctx);
       } catch (err) {
         const info = classifyInstallError(err);
-        installErrors.set(rec.id, info);
+        const tail = recent.slice(-10).join("\n").trim();
+        installErrors.set(
+          rec.id,
+          info.code === "disk-full" || !tail
+            ? info
+            : { ...info, message: `${info.message}\n─ 下載器輸出(尾段)─\n${tail}` },
+        );
         appendLog(
           info.code === "disk-full"
             ? "[palserver] 安裝失敗:磁碟空間不足,請清出更多空間後再試(Palworld 伺服器約需數十 GB)。"
