@@ -219,10 +219,18 @@ export async function applyHostFix(
   newRaw.copy(level.data, targets[0]);
   void oldRaw; // 舊值已由 matching 過濾驗證
 
+  // ── 帕魯過戶:CharacterSaveParameterMap 裡帕魯的 OwnerPlayerUId 還掛在舊 uid 上
+  //    (擁有者顯示、統計歸屬、以及清理類工具的歸屬判斷都看這個欄位)。
+  //    OwnerPlayerUId 是具名 GVAS 屬性,可用與 PlayerUId 相同的錨點安全定位;
+  //    只改「值 == 舊 uid」的,一隻不多一隻不少。
+  //    (OldOwnerPlayerUIds 是歷史紀錄陣列,元素無具名錨點且不影響行為,不動。)
+  const owners = findGuidProps(level.data, "OwnerPlayerUId").filter((p) => p.uuid === oldUid);
+  for (const p of owners) newRaw.copy(level.data, p.offset);
+
   // ── 寫回:玩家檔內容落到 <新Uid>.sav(覆蓋加入時產生的空角色),刪舊檔;Level.sav 原地覆寫。
   fs.writeFileSync(newPath, compressSav(oldPlayer.data, oldPlayer.saveType));
   fs.rmSync(oldPath, { force: true });
   fs.writeFileSync(levelPath, compressSav(level.data, level.saveType));
 
-  return { oldUid, newUid, patchedLevelEntries: targets.length };
+  return { oldUid, newUid, patchedLevelEntries: targets.length, patchedPalOwners: owners.length };
 }

@@ -1211,5 +1211,6 @@
  "攻": "ATK",
  "防": "DEF",
  "幸運": "Lucky",
- "背包": "Inventory"
+ "背包": "Inventory",
+ "已一併把 {n} 隻帕魯的擁有者過戶到新 ID(修掉共玩殘留的歸屬)。": "Also transferred ownership of {n} pals to the new ID (fixing co-op leftover attribution)."
 }

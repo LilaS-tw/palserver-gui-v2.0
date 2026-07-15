@@ -75,6 +75,11 @@ export function HostFixModal({
             <p className="inline-flex items-center gap-2 text-[15px] font-bold text-grass">
               <FiCheck className="size-5" /> {t("修復完成!主機角色已過戶給新 ID。")}
             </p>
+            {done.patchedPalOwners > 0 && (
+              <p className="text-[13px] text-ink-muted">
+                {t("已一併把 {n} 隻帕魯的擁有者過戶到新 ID(修掉共玩殘留的歸屬)。", { n: done.patchedPalOwners })}
+              </p>
+            )}
             <p className="text-[13px] text-ink-muted">
               {t("修復前已自動備份:{backup}(出問題可在下方備份清單一鍵還原)。", { backup: done.backup })}
             </p>

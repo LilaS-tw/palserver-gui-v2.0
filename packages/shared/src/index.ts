@@ -565,6 +565,8 @@ export interface HostFixResult {
   newUid: string;
   /** Level.sav 裡被改寫的角色條目數(正常恰為 1)。 */
   patchedLevelEntries: number;
+  /** 一併過戶的帕魯數(OwnerPlayerUId 由舊 uid 改為新 uid)。 */
+  patchedPalOwners: number;
   /** 修復前自動備份的檔名。 */
   backup: string;
 }
