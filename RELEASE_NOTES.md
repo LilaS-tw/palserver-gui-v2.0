@@ -1,8 +1,8 @@
-# palserver GUI — v2.3.0
+# palserver GUI — v2.4.0
 
-排行榜與伺服器週報、世界樹地圖、圖鑑收集完成度、每日多時刻自動重啟;修復「排程自動重啟後伺服器停擺」與存檔掃描等級/IV 全空
-Leaderboards & server digest, World Tree map, Paldeck completion, multi-time daily restarts; fixes the scheduled-restart hang and empty levels/IVs in save scans
-ランキングとサーバーレポート、世界樹マップ、図鑑コンプ率、毎日複数時刻の自動再起動。スケジュール再起動後の停止不具合とセーブ解析(レベル/個体値)を修正
+新手開服重設計(建立精靈/埠防撞/邀請朋友)、帕魯數值調整大升級(原版值/工作適性/熱重載)、模組改版日生存包(停用不刪檔/新版偵測)、Wine 與 Kubernetes 支援;修更新後前端 404 與 CPU 顯示
+Onboarding redesign (wizard / port guard / invite friends), pal stats overhaul (vanilla values / work suitability / hot reload), mod survival kit (disable without deleting / update detection), Wine & Kubernetes support; fixes the post-update 404 and CPU readings
+初心者向けサーバー作成の刷新(ウィザード/ポート保護/フレンド招待)、パルステータス編集の大幅強化(バニラ値/作業適性/ホットリロード)、モッド延命キット(無効化/新版検出)、Wine と Kubernetes 対応。更新後の 404 と CPU 表示を修正
 
 > 有開自動更新會自己抓,或依下方手動下載。
 > The in-app updater fetches it automatically, or download below.
@@ -12,20 +12,21 @@ Leaderboards & server digest, World Tree map, Paldeck completion, multi-time dai
 <summary><b>🇹🇼 繁體中文</b></summary>
 
 ### 新功能
-- **排行榜分頁**(贊助者) — 等級榜、財富榜、最強帕魯榜(加權評分:等級+IV+星級+詞條,列出詞條明細)、公會綜合實力榜(平均等級/活躍成員/據點/駐守/研究多維比較);「**伺服器大事**」自動彙整新玩家、練級最快、新蓋據點與全服金錢趨勢曲線;可開啟「**每小時自動掃描**」累積歷史;各榜標題旁「?」可看計算方式。
-- **圖鑑收集完成度** — 玩家詳情顯示已登錄/捕捉過的物種數與進度條(讀存檔,離線玩家也查得到)。
-- **世界樹地圖** — 線上地圖新增「主世界/世界樹」切換:世界樹專屬底圖,附 7 隻 Alpha 頭目(含頭像與等級)、快速旅行/塔地標、80 個帕魯樹晶礦點;玩家位置依所在世界自動分流。
-- **每天多時刻自動重啟**(贊助者;單一時刻免費) — 排程 UI 改版,準點觸發不漂移。
-- **BOSS(頭目)帕魯** — 給予帕魯/自訂帕魯支援頭目版本。
-- **簡體中文完整在地化** — 感謝 UCKETX 的大規模校對(PR #18、#33)。
-- 自動重啟的遊戲內倒數公告改用介面語言(儲存「伺服器重啟」設定時寫入)。
+- **新手開服重設計** — 建立精靈三步驟(基本資料 → 玩法預設檔:官方/休閒/硬核 → 原生 vs 強化模組),建立完成直接進入伺服器頁;啟動前自動偵測五種埠(遊戲/查詢/RCON/REST/反作弊插件)被占用即跳修改面板;建立時自動分配未使用的遊戲埠;新伺服器預設啟用 RCON(自動產生管理員密碼與唯一埠)。
+- **邀請朋友加入** — 總覽新卡片三選一:playit.gg(白話三步教學+教學影片連結)/ VPN(Radmin/Tailscale)/ 直連(公開 IP 預設馬賽克,點眼睛顯示);附「朋友這樣加入」遊戲內操作指引。
+- **分頁自由化** — 每台伺服器獨立的分頁顯示與**拖曳排序**;分頁列尾端「＋」管理面板一鍵開關分頁、恢復預設;原味伺服器預設精簡五頁,強化版多出玩家/公會/地圖等分頁。
+- **帕魯數值調整大升級**(贊助者) — 輸入框顯示**原版數值**(657 個資料列,含首領/塔主變體);**工作適性**13 項可調;×0.5/×2 倍率快捷;已修改清單顯示「原版 → 新值 (+%)」;PalSchema 一鍵更新;**熱重載**:伺服器運行中儲存即生效(對新遭遇帕魯);自動校正首領資料列大小寫(修正絕大多數 BOSS_ 首領版原本寫不進的問題)。
+- **模組改版日生存包** — UE4SS / 反作弊插件 / PalSchema 三卡皆可「**停用**」(保留全部檔案,Lua 模組與設定不刪);已裝版本落後時顯示「**有新版**」徽章;更新遊戲本體前提醒模組可能暫時不相容。
+- **出事時說人話** — 伺服器意外停止(閃退)顯示醒目橫幅與可能原因;連續崩潰達上限暫停自動重啟時明確提示;錯誤訊息附「查看日誌」;日誌新增過濾(全部/錯誤與警告/聊天與事件)與智慧捲動(回看時不再被拉到底部)。
+- **自動化** — 自動備份預設啟用(每小時);「開機自動啟動 agent」(Windows)搭配每伺服器「自動啟動」= 主機開機即開服;停機倒數中按鈕變「**立即停止**」可跳過倒數;強化版建立自動開啟反作弊插件 REST API 並配好權杖。
+- **Wine 與 Kubernetes 支援**(感謝 @teps3105,PR #36) — docker 可用 Wine 執行 Windows 版伺服器(反作弊插件因此可用),並支援 K8s 叢集內的模組/PalSchema 安裝。
+- **配置評估健檢**(贊助者) — 首頁進階顯示擴充:主機硬體與網路實測評分。
+- **介面打磨** — 世界設定(118 項)與反作弊插件(45+ 項)新增**搜尋**;危險選項黃色警告(硬核/帕魯永久死亡/關 RCON·REST 會斷 GUI 功能);白名單未啟用提示與空名單警告;還原備份確認顯示會回溯多少進度;離線玩家名冊可直接封鎖/解除;learntech/unlearntech 指令加科技目錄搜尋下拉(感謝 @UCKETX);空狀態提示統一虛線風格;廣播移到日誌下方;右下角貓貓可在設定關閉。
 
 ### 修正
-- **排程自動重啟後伺服器停擺** — 重啟流程沒等舊程序完全退出就宣告成功,新程序起不來,伺服器一路停到有人發現。有開排程重啟的島主請務必更新。
-- **存檔掃描等級/IV 全空** — 三個解析問題一次修好(ByteProperty 欄位、共玩殘留的重複玩家實體蓋掉真身、新角色省略預設值):玩家詳情與排行榜的等級、個體值、星級現在都正確。更新後重掃一次生效。
-- **埠管理**(感謝 teps3105,PR #29) — REST 埠改 1:1 對映(**docker 既有實例需 stop→remove→start 一次**);撞埠檢查跨欄位(遊戲埠/查詢埠同為 UDP、REST/RCON 同為 TCP);複製實例自動分配新埠;native 改世界設定即時寫回 ini。
-- **社群修復**(感謝 BlackWhiteTW,PR #32) — 遺物指令補 RelicType 參數、自訂帕魯濃縮計算、UE4SS 測試版下載、等級上限 255、地圖 Z 軸座標。
-- 其他 — 自訂帕魯「隨機詞條」可抽滿 8 條、濃縮數值上限防呆、手機版面(375px)排版修正。
+- **更新 agent 後前端 404** — 自我更新換檔流程加固(staging + 原子替換)並新增啟動自癒(殘留的 web.old 自動救回)。
+- **CPU 使用率亂跳/歸零** — 棄用 pidusage 的 cpu 欄位改自算差分。
+- 分頁拖曳中字體不再忽大忽小;「翻譯」開啟時星星圖示不再被同色蓋住;帕魯數值調整分頁不再被誤踢回總覽;系統匣不再鎖住 logo.png;公會/排行榜無法取得快照時的重複提示與版面。
 
 </details>
 
@@ -33,20 +34,20 @@ Leaderboards & server digest, World Tree map, Paldeck completion, multi-time dai
 <summary><b>🇨🇳 简体中文</b></summary>
 
 ### 新功能
-- **排行榜页签**(赞助者) — 等级榜、财富榜、最强帕鲁榜(加权评分:等级+IV+星级+词条,列出词条明细)、公会综合实力榜(平均等级/活跃成员/据点/驻守/研究多维比较);「**服务器大事**」自动汇整新玩家、练级最快、新盖据点与全服金钱趋势曲线;可开启「**每小时自动扫描**」积累历史;各榜标题旁「?」可看计算方式。
-- **图鉴收集完成度** — 玩家详情显示已登录/捕捉过的物种数与进度条(读存档,离线玩家也查得到)。
-- **世界树地图** — 在线地图新增「主世界/世界树」切换:世界树专属底图,附 7 只 Alpha 头目(含头像与等级)、快速旅行/塔地标、80 个帕鲁树晶矿点;玩家位置按所在世界自动分流。
-- **每天多时刻自动重启**(赞助者;单一时刻免费) — 排程 UI 改版,准点触发不漂移。
-- **BOSS(头目)帕鲁** — 给予帕鲁/自定义帕鲁支持头目版本。
-- **简体中文完整本地化** — 感谢 UCKETX 的大规模校对(PR #18、#33)。
-- 自动重启的游戏内倒数公告改用界面语言(保存「服务器重启」设置时写入)。
+- **新手开服重设计** — 创建向导三步骤(基本资料 → 玩法预设:官方/休闲/硬核 → 原生 vs 强化模组),创建完成直接进入服务器页;启动前自动检测五种端口被占用即弹修改面板;创建时自动分配未使用的游戏端口;新服务器默认启用 RCON(自动生成管理员密码与唯一端口)。
+- **邀请朋友加入** — 总览新卡片三选一:playit.gg(白话三步教程+教学视频链接)/ VPN / 直连(公开 IP 默认打码);附「朋友这样加入」游戏内操作指引。
+- **标签页自由化** — 每台服务器独立的标签显示与**拖拽排序**;「＋」管理面板一键开关标签、恢复默认;原味服务器默认精简五页。
+- **帕鲁数值调整大升级**(赞助者) — 输入框显示**原版数值**(657 个数据行,含首领/塔主变体);**工作适性** 13 项可调;×0.5/×2 倍率快捷;已修改清单显示「原版 → 新值 (+%)」;PalSchema 一键更新;**热重载**:服务器运行中保存即生效;自动校正首领数据行大小写(修正 BOSS_ 首领版原本写不进的问题)。
+- **模组改版日生存包** — UE4SS / 反作弊插件 / PalSchema 三卡皆可「**停用**」(保留文件不删);版本落后显示「**有新版**」徽章;更新游戏前提醒模组可能暂时不兼容。
+- **出事时说人话** — 服务器意外停止显示醒目横幅与可能原因;连续崩溃熔断明确提示;错误信息附「查看日志」;日志新增过滤与智能滚动。
+- **自动化** — 自动备份默认启用;「开机自动启动 agent」搭配每服务器「自动启动」= 主机开机即开服;停机倒数中可「**立即停止**」;强化版自动开启反作弊插件 REST API 并配好令牌。
+- **Wine 与 Kubernetes 支持**(感谢 @teps3105,PR #36) — docker 可用 Wine 运行 Windows 版服务器(反作弊插件因此可用),并支持 K8s 集群内的模组/PalSchema 安装。
+- **配置评估健检**(赞助者)与界面打磨 — 世界设置/反作弊插件**搜索**、危险选项警告、白名单防呆、还原备份回溯提示、离线玩家可封锁、科技目录搜索下拉(感谢 @UCKETX)、空状态统一风格等。
 
 ### 修复
-- **排程自动重启后服务器停摆** — 重启流程没等旧程序完全退出就宣告成功,新程序起不来,服务器一路停到有人发现。有开排程重启的岛主请务必更新。
-- **存档扫描等级/IV 全空** — 三个解析问题一次修好(ByteProperty 字段、联机残留的重复玩家实体盖掉真身、新角色省略默认值):玩家详情与排行榜的等级、个体值、星级现在都正确。更新后重扫一次生效。
-- **端口管理**(感谢 teps3105,PR #29) — REST 端口改 1:1 映射(**docker 既有实例需 stop→remove→start 一次**);撞端口检查跨字段(游戏端口/查询端口同为 UDP、REST/RCON 同为 TCP);复制实例自动分配新端口;native 改世界设置即时写回 ini。
-- **社区修复**(感谢 BlackWhiteTW,PR #32) — 遗物指令补 RelicType 参数、自定义帕鲁浓缩计算、UE4SS 测试版下载、等级上限 255、地图 Z 轴坐标。
-- 其他 — 自定义帕鲁「随机词条」可抽满 8 条、浓缩数值上限防呆、手机版面(375px)排版修正。
+- **更新 agent 后前端 404** — 换档流程加固(staging+原子替换)+启动自愈。
+- **CPU 使用率乱跳/归零** — 改自算差分。
+- 标签拖拽字体缩放、翻译星星同色、帕鲁数值页误踢回总览、系统托盘锁 logo.png、公会/排行榜快照提示重复等。
 
 </details>
 
@@ -54,20 +55,20 @@ Leaderboards & server digest, World Tree map, Paldeck completion, multi-time dai
 <summary><b>🇬🇧 English</b></summary>
 
 ### New
-- **Leaderboard tab** (sponsors) — level, wealth, strongest-Pal (weighted score: level + IVs + stars + passives, with passive chips) and guild-power rankings (avg level / active members / bases / workers / research); a "**Server highlights**" digest of new players, fastest levelers, new bases and a server-wide money trend curve; optional **hourly auto-scan** to build history; a "?" beside each board explains the scoring.
-- **Paldeck completion** — player details show registered/captured species count with a progress bar (from the save file; works for offline players too).
-- **World Tree map** — the live map gains a Main world / World Tree switcher: dedicated World Tree base map with 7 Alpha bosses (portraits + levels), fast-travel/tower landmarks and 80 Paloxite nodes; player markers route to the world they're actually in.
-- **Multiple daily restart times** (sponsors; a single daily time stays free) — reworked schedule UI, drift-free on-the-minute triggering.
-- **BOSS Pals** — Give Pal / Custom Pal now support boss variants.
-- **Complete Simplified-Chinese localisation** — thanks to UCKETX (PR #18, #33).
-- In-game countdown announcements for automatic restarts now use your interface language (written when saving restart settings).
+- **Onboarding redesign** — 3-step creation wizard (basics → gameplay presets: official/casual/hardcore → vanilla vs enhanced mods) that lands you straight in the new server page; pre-start detection of all five ports (game/query/RCON/REST/anti-cheat) with a fix-it panel; automatic free game-port assignment; RCON enabled by default with a generated admin password and unique port.
+- **Invite friends** — new overview card with three paths: playit.gg (plain-language steps + tutorial link) / VPN (Radmin/Tailscale) / direct (public IP masked by default); includes in-game joining instructions for your friends.
+- **Tab freedom** — per-server tab visibility and **drag-to-reorder**; a "+" manager panel to toggle tabs and reset defaults; vanilla servers start with a lean five tabs.
+- **Pal stats overhaul** (sponsors) — inputs show **vanilla values** (657 rows incl. boss/tower variants); **13 work-suitability** fields; ×0.5/×2 shortcuts; "vanilla → new (+%)" comparison; one-click PalSchema update; **hot reload** (saves apply while the server runs); automatic boss-row case correction (fixes BOSS_ variants that previously never applied).
+- **Mod survival kit** — UE4SS / anti-cheat plugin / PalSchema can all be **disabled without deleting** anything (Lua mods and configs are kept); "update available" badges; game updates now warn about mod compatibility first.
+- **Plain-spoken failures** — a clear banner when the server stops unexpectedly; explicit notice when crash-loop protection pauses auto-restart; errors link to logs; log filtering (errors/chat) and smart auto-scroll.
+- **Automation** — scheduled backups on by default (hourly); "start agent on boot" (Windows) plus per-server "auto start" = servers come up with the machine; "**Stop now**" skips the shutdown countdown; enhanced servers get the anti-cheat REST API pre-configured with a token.
+- **Wine & Kubernetes support** (thanks @teps3105, PR #36) — run the Windows server binary under Wine in docker (enabling the anti-cheat plugin), plus in-cluster mod/PalSchema installs for K8s.
+- **Setup review** (sponsors) and polish — settings **search** (world & anti-cheat), dangerous-option warnings, whitelist safeguards, restore-rollback estimates, offline-player banning, tech-catalog dropdown for learntech (thanks @UCKETX), unified empty states, and more.
 
 ### Fixes
-- **Server left stopped after a scheduled restart** — the restart flow declared success before the old process fully exited, so the new one never came up. If you use scheduled restarts, please update.
-- **Empty levels/IVs in save scans** — three parsing issues fixed at once (ByteProperty fields, duplicate player entities from co-op imports shadowing the real one, defaults omitted for fresh characters): levels, IVs and stars in player details and leaderboards are now correct. Rescan once after updating.
-- **Port management** (thanks teps3105, PR #29) — REST port is now mapped 1:1 (**existing docker instances need one stop → remove → start**); port-conflict checks now work across fields (game/query ports share UDP, REST/RCON share TCP); duplicating an instance auto-assigns fresh ports; native backends write world-setting changes to the ini immediately.
-- **Community fixes** (thanks BlackWhiteTW, PR #32) — relic command RelicType parameter, custom-Pal condensing math, UE4SS beta downloads, level cap 255, map Z coordinates.
-- Misc — Custom Pal "random passives" can roll up to 8, condensing count sanity cap, 375px mobile layout fixes.
+- **Post-update 404** — hardened self-update swap (staging + atomic rename) with startup self-healing for stranded web folders.
+- **CPU readings jumping/zeroing** — replaced pidusage's cpu field with self-computed deltas.
+- Tab-drag font scaling, translate-star contrast, pal-stats tab bounce, tray icon locking logo.png, duplicated guild/leaderboard hints, and more.
 
 </details>
 
@@ -75,19 +76,19 @@ Leaderboards & server digest, World Tree map, Paldeck completion, multi-time dai
 <summary><b>🇯🇵 日本語</b></summary>
 
 ### 新機能
-- **ランキングタブ**(スポンサー) — レベル/所持金/最強パル(加重スコア:レベル+個体値+星+パッシブ,パッシブも表示)/ギルド総合戦力(平均レベル/アクティブ/拠点/配備/研究の多面比較)。「**サーバーの出来事**」が新規プレイヤー・レベル上げ最速・新拠点・サーバー全体の所持金推移を自動集計。「**毎時自動スキャン**」で履歴を蓄積可能。各ランキングの「?」で計算方法を確認できます。
-- **図鑑コンプ率** — プレイヤー詳細に登録/捕獲済み種数とプログレスバーを表示(セーブ読み取り,オフラインでも確認可)。
-- **世界樹マップ** — ライブマップに「メインワールド/世界樹」切替を追加:世界樹専用ベースマップに 7 体のアルファパル(アイコン+レベル)、ファストトラベル/塔、パルキサイト 80 箇所を表示。プレイヤー位置は実際にいるワールドへ自動振り分け。
-- **毎日複数時刻の自動再起動**(スポンサー;1 時刻は無料) — スケジュール UI を刷新、時刻ぴったりに発火。
-- **BOSS(ボス)パル** — パル付与/カスタムパルがボス変種に対応。
-- **簡体字中国語の完全ローカライズ** — UCKETX さんに感謝(PR #18、#33)。
-- 自動再起動のゲーム内カウントダウン告知がインターフェース言語に対応(再起動設定の保存時に反映)。
+- **サーバー作成の刷新** — 3 ステップウィザード(基本情報 → プリセット:公式/カジュアル/ハードコア → バニラ vs 強化モッド)。作成後はそのままサーバーページへ。起動前に 5 種のポート占有を検出して修正パネルを表示。ゲームポートの自動割当。RCON をデフォルト有効化(管理者パスワード自動生成+固有ポート)。
+- **フレンド招待** — 3 つの方法(playit.gg のやさしい 3 ステップ+チュートリアルリンク / VPN / 直結・公開 IP はデフォルトでマスク)。フレンド側のゲーム内参加手順も案内。
+- **タブの自由化** — サーバーごとのタブ表示と**ドラッグ並べ替え**。「＋」パネルでオンオフと初期化。バニラサーバーはすっきり 5 タブから。
+- **パルステータス編集の大幅強化**(スポンサー) — 入力欄に**バニラ値**を表示(ボス/タワー変種含む 657 行)。**作業適性** 13 項目。×0.5/×2 ショートカット。「バニラ → 新値 (+%)」比較。PalSchema ワンクリック更新。**ホットリロード**(稼働中でも保存即反映)。ボス行の大文字小文字を自動補正(BOSS_ 変種が反映されなかった問題を修正)。
+- **モッド延命キット** — UE4SS / アンチチート / PalSchema を**削除せず無効化**可能(Lua モッドや設定は保持)。「新バージョンあり」バッジ。ゲーム更新前にモッド互換性を警告。
+- **わかりやすい障害通知** — 予期せぬ停止のバナー、クラッシュループ保護の明示、ログへのリンク、ログフィルタとスマートスクロール。
+- **自動化** — 自動バックアップをデフォルト有効化。「起動時に agent を自動開始」+サーバーごとの「自動起動」でマシン起動と同時に開服。カウントダウン中の「**今すぐ停止**」。強化版はアンチチートの REST API とトークンを自動設定。
+- **Wine と Kubernetes 対応**(@teps3105 さん、PR #36) — docker で Windows バイナリを Wine 実行(アンチチート利用可能に)。K8s クラスタ内のモッド/PalSchema インストールにも対応。
+- **構成レビュー**(スポンサー)と磨き込み — 設定**検索**、危険設定の警告、ホワイトリスト保護、復元時のロールバック量表示、オフラインプレイヤーの BAN、テクノロジー検索ドロップダウン(@UCKETX さん)など。
 
 ### 修正
-- **スケジュール再起動後にサーバーが停止したまま** — 旧プロセスの終了を待たずに成功と判定し、新プロセスが起動しない問題。スケジュール再起動をお使いの方は必ず更新してください。
-- **セーブ解析でレベル/個体値が空** — 3 つの解析問題を一括修正(ByteProperty、協力プレイ移行の重複プレイヤー実体、新規キャラのデフォルト値省略):プレイヤー詳細とランキングのレベル/個体値/星が正しく表示されます。更新後に一度再スキャンしてください。
-- **ポート管理**(teps3105 さん,PR #29) — REST ポートを 1:1 マッピングに変更(**既存の docker インスタンスは stop→remove→start が一度必要**);ポート競合チェックをフィールド横断に(ゲーム/クエリは UDP、REST/RCON は TCP);複製時は新ポートを自動割当;native はワールド設定変更を即 ini へ書き込み。
-- **コミュニティ修正**(BlackWhiteTW さん,PR #32) — 遺物コマンドの RelicType、カスタムパルの濃縮計算、UE4SS ベータ版ダウンロード、レベル上限 255、マップ Z 座標。
-- その他 — カスタムパルの「ランダムパッシブ」が最大 8 個に、濃縮数の上限ガード、モバイル(375px)レイアウト修正。
+- **更新後にフロントエンドが 404** — 自己更新の入れ替えを強化(ステージング+アトミック置換)し、起動時の自己修復を追加。
+- **CPU 使用率の乱高下/ゼロ表示** — 自前の差分計算に変更。
+- タブドラッグ中のフォント変化、翻訳スターの視認性、パルステータスタブの誤リダイレクト、トレイアイコンの logo.png ロックなど。
 
 </details>
