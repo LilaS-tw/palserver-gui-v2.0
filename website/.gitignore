@@ -3,3 +3,7 @@ node_modules/
 out/
 next-env.d.ts
 *.tsbuildinfo
+
+# /map viewer 的底圖/地標素材:build 前由 scripts/copy-map-assets.mjs 從
+# ../packages/web/public 複製過來,不進 git(來源已經在 packages/web 版控了)。
+public/map-assets/

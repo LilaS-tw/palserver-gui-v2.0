@@ -40,6 +40,8 @@ import type {
   PdRestStatus,
   PlayerDetail,
   PresenceEvent,
+  PublicMapSettings,
+  PublicMapStatus,
   RconCommandsResponse,
   RestartPolicy,
   RestartStatus,
@@ -531,6 +533,24 @@ export class AgentClient {
 
   guild(id: string, guildId: string): Promise<PdGuildDetail> {
     return this.request(`/api/instances/${id}/guilds/${encodeURIComponent(guildId)}`);
+  }
+
+  /** 公開地圖目前設定 + 分享連結 + 最後一次發布結果。 */
+  publicMap(id: string): Promise<PublicMapStatus> {
+    return this.request(`/api/instances/${id}/public-map`);
+  }
+
+  /** 更新公開地圖設定(局部);回傳同 publicMap()。 */
+  updatePublicMap(id: string, settings: Partial<PublicMapSettings>): Promise<PublicMapStatus> {
+    return this.request(`/api/instances/${id}/public-map`, {
+      method: "PUT",
+      body: JSON.stringify({ settings }),
+    });
+  }
+
+  /** 撤銷舊分享連結、產生新的;回傳同 publicMap()。 */
+  rotatePublicMapLink(id: string): Promise<PublicMapStatus> {
+    return this.request(`/api/instances/${id}/public-map/rotate`, { method: "POST" });
   }
 
   palDefenderRest(id: string): Promise<PdRestStatus> {

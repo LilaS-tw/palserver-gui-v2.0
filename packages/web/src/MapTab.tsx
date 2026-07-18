@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { FiRefreshCw, FiMap, FiX, FiHome, FiUsers, FiStar, FiMoon, FiMapPin, FiExternalLink, FiZap } from "react-icons/fi";
+import { FiRefreshCw, FiMap, FiX, FiHome, FiUsers, FiStar, FiMoon, FiMapPin, FiExternalLink, FiZap, FiGlobe } from "react-icons/fi";
 import { GiCrownedSkull, GiMinerals } from "react-icons/gi";
 import * as L from "leaflet";
 import "leaflet/dist/leaflet.css";
@@ -19,6 +19,7 @@ import { useGameData, palIconUrl, type GameData } from "./gameData";
 import { PlayerDetailModal } from "./PlayerDetailModal";
 import { GuildDetailModal as SaveGuildDetailModal } from "./GuildDetailModal";
 import { PlayerActionsMenu } from "./PlayerActionsMenu";
+import { PublicMapModal } from "./PublicMapModal";
 import { t, useI18n } from "./i18n";
 import { SHOW_FAST_TRAVEL_UNLOCK } from "./flags";
 import { Overlay, btn, btnGhost, card, errorCls } from "./ui";
@@ -167,6 +168,7 @@ export function MapTab({
   };
   const [error, setError] = useState<string | null>(null);
   const [open, setOpen] = useState(fullscreen);
+  const [showPublicMap, setShowPublicMap] = useState(false);
   const [showPlayers, setShowPlayers] = useState(true);
   const [showOffline, setShowOffline] = useState(false);
   const [showBases, setShowBases] = useState(true);
@@ -511,6 +513,9 @@ export function MapTab({
           onClose={() => setPlayerDetail(null)}
         />
       )}
+      {showPublicMap && (
+        <PublicMapModal client={client} instanceId={instanceId} onClose={() => setShowPublicMap(false)} />
+      )}
     </>
   );
 
@@ -561,6 +566,12 @@ export function MapTab({
               <FiStar className="size-3.5 text-pal" />
             </button>
           ))}
+          <button
+            className={`${btnGhost} inline-flex items-center gap-1.5`}
+            onClick={() => setShowPublicMap(true)}
+          >
+            <FiGlobe className="size-4" /> {t("公開地圖")}
+          </button>
           <button
             className={`${btn} inline-flex items-center gap-1.5`}
             onClick={() => setOpen(true)}

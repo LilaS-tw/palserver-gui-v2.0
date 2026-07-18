@@ -31,6 +31,7 @@ import { fetchServerCommands, rconExec, requireRcon } from "./rcon.js";
 import type { PresenceTracker } from "./presence.js";
 import type { BackupScheduler } from "./backup-scheduler.js";
 import type { RestartSupervisor } from "./supervisor.js";
+import type { PublicMapPublisher } from "./public-map.js";
 import { AGENT_VERSION, PORT, HOST, REQUIRE_TOKEN, WEB_ORIGINS, TLS_ENABLED, OPEN_BROWSER, ENV_LOCKED, IS_PORTABLE_EXE } from "./env.js";
 import { saveSettings } from "./settings.js";
 import { collectSpecs, reviewSpecs } from "./system-review.js";
@@ -245,6 +246,7 @@ export function registerRoutes(
   presence: PresenceTracker,
   scheduler: BackupScheduler,
   supervisor: RestartSupervisor,
+  publicMap: PublicMapPublisher,
   auth: AuthContext,
   updateOps: UpdateOps,
 ): void {
@@ -1089,6 +1091,9 @@ export function registerRoutes(
     // 真正刪除。driver.remove 負責各後端的收尾:停止行程 / 移除容器 / 刪除 agent
     // 自行安裝的外部目錄(native)。k8s 只縮到 0、刻意保留叢集 PVC(那不是我們建的)。
     await driverOf(rec).remove(rec, ctxOf(rec));
+    // 公開地圖:secret 只存在 instanceDir/public-map.json 裡,目錄砍掉前要先讓發布器讀出來
+    // 搬進全域下架佇列,否則 Worker 上的快照永遠沒人能撤銷(見 public-map.ts Finding C)。
+    await publicMap.instanceRemoved(rec.id);
     // agent 自管的資料根目錄(native 安裝+存檔、docker 綁定掛載資料、pid/log)一併刪掉。
     // 對 k8s 這個目錄通常是空的,force 會忽略不存在。
     fs.rmSync(store.instanceDir(rec.id), { recursive: true, force: true });
@@ -1869,6 +1874,36 @@ export function registerRoutes(
     const { address } = z.object({ address: z.string().trim().max(120) }).parse(req.body);
     const updated = store.update(rec.id, { externalAddress: address || undefined });
     return { externalAddress: updated.externalAddress ?? null };
+  });
+
+  // ── 公開地圖:服主一鍵把地圖公開到全網(免費功能,不做贊助 gating)。
+  // 過濾在 agent 端(public-map.ts)完成,這裡只是薄薄一層 CRUD + 立即發布觸發。
+  app.get("/api/instances/:id/public-map", async (req) => {
+    const rec = getOr404((req.params as { id: string }).id);
+    return publicMap.status(rec);
+  });
+
+  app.put("/api/instances/:id/public-map", async (req) => {
+    const rec = getOr404((req.params as { id: string }).id);
+    const { settings } = z
+      .object({
+        settings: z.object({
+          enabled: z.boolean().optional(),
+          showPlayers: z.boolean().optional(),
+          showPlayerNames: z.boolean().optional(),
+          showOfflinePlayers: z.boolean().optional(),
+          showBases: z.boolean().optional(),
+          showGuildNames: z.boolean().optional(),
+          delayMinutes: z.union([z.literal(0), z.literal(5), z.literal(15)]).optional(),
+        }),
+      })
+      .parse(req.body);
+    return publicMap.updateSettings(rec, settings);
+  });
+
+  app.post("/api/instances/:id/public-map/rotate", async (req) => {
+    const rec = getOr404((req.params as { id: string }).id);
+    return publicMap.rotate(rec);
   });
 
   app.get("/api/instances/:id/version", async (req) => {
