@@ -85,15 +85,7 @@ export function CreditsModal({ onClose }: { onClose: () => void }) {
             {t("感謝每一位支持 palserver GUI 的贊助者,完整名單請見:")}
           </p>
           <div className="flex flex-wrap items-center gap-2">
-            <a
-              className={`${btnSponsor} inline-flex items-center gap-1.5`}
-              href={promo.credits.donate}
-              target="_blank"
-              rel="noreferrer"
-            >
-              <FiCoffee className="size-4" /> Buy Me a Coffee
-            </a>
-            {lang === "zh-CN" && promo.credits.donateAfdian && (
+            {lang === "zh-CN" && promo.credits.donateAfdian ? (
               <a
                 className={`${btnSponsor} inline-flex items-center gap-1.5`}
                 href={promo.credits.donateAfdian}
@@ -101,6 +93,15 @@ export function CreditsModal({ onClose }: { onClose: () => void }) {
                 rel="noreferrer"
               >
                 <FiHeart className="size-4" /> {t("愛發電")}
+              </a>
+            ) : (
+              <a
+                className={`${btnSponsor} inline-flex items-center gap-1.5`}
+                href={promo.credits.donate}
+                target="_blank"
+                rel="noreferrer"
+              >
+                <FiCoffee className="size-4" /> Buy Me a Coffee
               </a>
             )}
           </div>

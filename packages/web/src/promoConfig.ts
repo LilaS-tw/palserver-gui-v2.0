@@ -51,7 +51,7 @@ const DEFAULT: PromoConfig = {
     instagram: "https://www.instagram.com/iosoftware.ai/",
     discord: "https://discord.gg/sgMMdUZd3V",
     sponsor: "https://buymeacoffee.com/dalufish",
-    afdian: "",
+    afdian: "https://ifdian.net/a/dalufish",
   },
   ipService: {
     name: "IP 直連設定服務",
@@ -92,7 +92,7 @@ const DEFAULT: PromoConfig = {
     ],
     ambassadors: [{ name: "捷克", role: "推廣大使", url: "https://www.youtube.com/@PXJ" }],
     donate: "https://buymeacoffee.com/dalufish",
-    donateAfdian: "",
+    donateAfdian: "https://ifdian.net/a/dalufish",
   },
 };
 
