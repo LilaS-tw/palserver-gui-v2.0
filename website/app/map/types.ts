@@ -46,11 +46,17 @@ export interface MapSnapshotV1 {
     offline?: boolean;
     bases?: boolean;
     guildNames?: boolean;
+    /** 頭目重生資料是否隨快照發布(伺服器主的隱私開關;鏡像 shared show.bossRespawns)。
+     *  false/缺 = 沒有重生資料,viewer 不顯示重生開關。 */
+    bossRespawns?: boolean;
   };
   /** 關掉的圖層,這個 key 可能整個不存在。 */
   players?: SnapshotEntity[];
   offline?: SnapshotEntity[];
   bases?: SnapshotBase[];
+  /** 野外/封印頭目的重生狀態,agent 端用 assignReportedBosses 一對一配好後,以 bosses.json
+   *  的「地圖座標」為鍵發出(viewer 用 `${x},${y}` 精確配對疊到 StaticBoss marker 上)。 */
+  bosses?: SnapshotBossRespawn[];
 }
 
 export interface SnapshotApiResponse {
@@ -81,6 +87,19 @@ export interface StaticBoss {
   /** 'field' = 野外頭目(Alpha Pal,紅框皇冠);'sealed' = 封印領域(紫框傳送門)。
    * 選填,舊資料(沒有這個欄位)一律當 'field' 處理。 */
   kind?: 'field' | 'sealed';
+}
+
+/** 野外/封印頭目重生狀態(疊在 bundled bosses.json marker 上)。x/y = 對照表地圖座標(精確配對鍵)。 */
+export interface SnapshotBossRespawn {
+  x: number;
+  y: number;
+  m?: SnapshotWorld;
+  /** 'alive' | 'dead' | 'unknown'(對齊 shared BossLiveStatus)。 */
+  st: 'alive' | 'dead' | 'unknown';
+  /** 預估重生 epoch 秒(st==='dead' 且有觀測到擊殺時);否則省略。 */
+  ra?: number;
+  /** 倒數是否採實測重生間隔(false/缺 = 官方預設 3600s 估算)。 */
+  ms?: boolean;
 }
 
 export type MapWorld = 'main' | 'tree';

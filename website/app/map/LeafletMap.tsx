@@ -4,7 +4,7 @@ import { useEffect, useRef } from 'react';
 import * as L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { getMapDict, pickLocalizedName, type MapLang } from './i18n';
-import type { MapSnapshotV1, MapWorld, StaticBoss, StaticLandmark } from './types';
+import type { MapSnapshotV1, MapWorld, SnapshotBossRespawn, StaticBoss, StaticLandmark } from './types';
 import { bossMarkerIcon, baseMarkerIcon, hashColor, nameLabelHtml, playerAvatarIcon, PLAYER_AVATAR_SIZE } from './markerIcon';
 
 // 底圖與座標邊界:原樣抄自 packages/web/src/MapTab.tsx:36-52(GUI 本體的即時地圖用
@@ -21,6 +21,12 @@ const escapeHtml = (s: string) =>
 /** 帕魯圖鑑頭像的完整 URL —— 快照/靜態 JSON 裡只帶裸檔名(game-data/pals/ 內的檔名),
  *  copy-map-assets.mjs 把被引用到的檔案複製進 /map-assets/pal-avatars/。 */
 const palAvatarUrl = (icon: string) => `/map-assets/pal-avatars/${icon}`;
+
+/** epoch 秒 → 當地 HH:MM。抄自 packages/web/src/BossRespawnTab.tsx:48-50 —— 頭目重生 tooltip
+ *  用絕對時刻,不做逐秒倒數(ra 是絕對 epoch,20 秒輪詢重繪一次就夠,不需要 per-second tick)。 */
+function fmtClock(epochSec: number): string {
+  return new Date(epochSec * 1000).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+}
 
 /** 靜態地標(Fast Travel / Tower / Dungeon):圖示資產、尺寸原樣照抄
  * packages/web/src/MapTab.tsx 的 LANDMARK_STYLE(:88-92)。GUI 端這層完全沒有徽章包裝
@@ -161,16 +167,34 @@ export default function LeafletMap({
     // 頭目:依 kind 分野外頭目(Alpha Pal,紅框皇冠)與封印領域(Sealed Realm,紫框傳送門),
     // 對齊 GUI 的 pmap-boss 系列;舊資料沒有 kind 一律當野外頭目(field)處理。
     if (showBosses) {
+      // 疊重生:snapshot.bosses 以對照表地圖座標為鍵,精確配對(agent 已一對一配好,無需
+      // shared runtime)。伺服器主未開放頭目重生發布時 snapshot.bosses 不存在 → 不疊。
+      const respawnByCoord = new Map<string, SnapshotBossRespawn>();
+      for (const r of snapshot.bosses ?? []) {
+        if (!inWorld(r.m)) continue;
+        respawnByCoord.set(`${r.x},${r.y}`, r);
+      }
       for (const b of curBosses) {
         const iconUrl = b.icon ? palAvatarUrl(b.icon) : null;
         const kind = b.kind ?? 'field';
-        const icon = bossMarkerIcon(iconUrl, b.lv, kind);
+        const rs = respawnByCoord.get(`${b.x},${b.y}`);
+        const dead = rs?.st === 'dead';
+        const icon = bossMarkerIcon(iconUrl, b.lv, kind, dead);
         const name = pickLocalizedName(b.name, lang);
         const kindLabel = kind === 'sealed' ? d.sealedRealm : d.alphaPal;
+        // tooltip 狀態行:dead → 重生時刻;alive → 存活;無資料(rs 不存在或 unknown) → 不加行。
+        const stateLine = rs
+          ? dead && rs.ra
+            ? `<div style="color:#e0894a">${escapeHtml(d.respawnsAt(fmtClock(rs.ra)))}${rs.ms ? '' : ' *'}</div>`
+            : rs.st === 'alive'
+              ? `<div style="color:#57c98a">${escapeHtml(d.bossAlive)}</div>`
+              : ''
+          : '';
         L.marker([b.y, b.x], { icon, riseOnHover: true })
           .bindTooltip(
             `<div style="font-weight:800">${escapeHtml(name)}</div>` +
-              `<div>${escapeHtml(kindLabel)}${b.lv ? ` · Lv.${b.lv}` : ''}</div>`,
+              `<div>${escapeHtml(kindLabel)}${b.lv ? ` · Lv.${b.lv}` : ''}</div>` +
+              stateLine,
             { direction: 'top', className: 'pmap2-tooltip' },
           )
           .addTo(group);

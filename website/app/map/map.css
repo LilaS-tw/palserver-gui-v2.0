@@ -499,6 +499,12 @@ nav .lang button.on {
   background: #9b6bef;
 }
 
+/* 已擊殺頭目:灰階 + 變暗(沿用玩家離線同一組手法,見 :384-386)。 */
+.pmap2-boss.pmap2-boss--dead {
+  opacity: 0.5;
+  filter: grayscale(0.55);
+}
+
 .pmap2-label {
   /* left/top 由呼叫端(markerIcon.ts 的 nameLabelHtml)依徽章尺寸算好,用 inline style 帶。 */
   position: absolute;

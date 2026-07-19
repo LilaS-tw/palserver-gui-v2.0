@@ -7,10 +7,12 @@ import {
   matchReportedBoss,
   assignReportedBosses,
   dungeonBossInfo,
+  buildPublicMapBossPoints,
   DEFAULT_BOSS_RESPAWN_SECONDS,
   BOSS_MATCH_MAP_RADIUS,
   type BossStateEntry,
   type DungeonBossEntry,
+  type BossRespawnState,
 } from "./index.js";
 import { savToMap, savToWorldTreeMap, isWorldTreeCoord } from "./index.js";
 
@@ -192,4 +194,54 @@ test("依世界分池(isWorldTreeCoord)後,主世界/世界樹 spawner 各歸各
   const treeReported = pool.filter((e) => isWorldTreeCoord(e.x));
   assert.deepEqual(mainReported.map((e) => e.name), ["main"]);
   assert.deepEqual(treeReported.map((e) => e.name), ["tree"]);
+});
+
+// ── buildPublicMapBossPoints:公開地圖野外頭目狀態點產生器(agent 端跑,viewer 只渲染)──
+// 註:地下城不進地圖(頭目層已涵蓋),此函式只處理野外/封印頭目。
+const MAIN_00 = { x: -123888, y: 158000 }; // 世界座標 → 地圖 (0,0)
+
+function mkState(patch: Partial<BossRespawnState>): BossRespawnState {
+  return {
+    version: 1,
+    generatedAt: 1000,
+    tick: 1,
+    spawnerTotal: 0,
+    bossCount: 0,
+    aliveCount: 0,
+    bosses: [],
+    ...patch,
+  };
+}
+
+test("buildPublicMapBossPoints:state=null → 空陣列", () => {
+  assert.deepEqual(buildPublicMapBossPoints(null, { field: [{ x: 0, y: 0 }], tree: [] }, 5000), []);
+});
+
+test("buildPublicMapBossPoints:野外頭目 dead → 發 st=dead + ra(秒)+ ms=false", () => {
+  const state = mkState({
+    bosses: [entry({ x: MAIN_00.x, y: MAIN_00.y, alive: false, diedAt: 1000, respawnedAt: -1 })],
+  });
+  const r = buildPublicMapBossPoints(state, { field: [{ x: 0, y: 0 }], tree: [] }, 2000);
+  assert.deepEqual(r, [{ x: 0, y: 0, m: "world", st: "dead", ra: 1000 + DEFAULT_BOSS_RESPAWN_SECONDS, ms: false }]);
+});
+
+test("buildPublicMapBossPoints:野外頭目 alive → st=alive、無 ra", () => {
+  const state = mkState({ bosses: [entry({ x: MAIN_00.x, y: MAIN_00.y, alive: true })] });
+  const r = buildPublicMapBossPoints(state, { field: [{ x: 0, y: 0 }], tree: [] }, 2000);
+  assert.equal(r.length, 1);
+  assert.equal(r[0].st, "alive");
+  assert.equal(r[0].ra, undefined);
+});
+
+test("buildPublicMapBossPoints:配對到但 unknown(alive=null、無擊殺紀錄)→ 不發點", () => {
+  const state = mkState({ bosses: [entry({ x: MAIN_00.x, y: MAIN_00.y, alive: null })] });
+  assert.deepEqual(buildPublicMapBossPoints(state, { field: [{ x: 0, y: 0 }], tree: [] }, 2000), []);
+});
+
+test("buildPublicMapBossPoints:世界樹 spawner 歸 tree 池、發 m=tree(不誤配主世界 catalog)", () => {
+  const state = mkState({ bosses: [entry({ x: 520440, y: -727175, alive: true })] }); // 世界樹地圖約 (-467,13)
+  const r = buildPublicMapBossPoints(state, { field: [{ x: 0, y: 0 }], tree: [{ x: -467, y: 13 }] }, 2000);
+  assert.equal(r.length, 1);
+  assert.equal(r[0].m, "tree");
+  assert.equal(r[0].st, "alive");
 });

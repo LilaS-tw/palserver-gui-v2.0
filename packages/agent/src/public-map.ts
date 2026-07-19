@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
 import {
+  buildPublicMapBossPoints,
   DEFAULT_PUBLIC_MAP_SETTINGS,
   guildColorFromId,
   isWorldTreeCoord,
@@ -13,6 +14,7 @@ import {
   type PdPlayerSummary,
   type PublicMapArea,
   type PublicMapBasePoint,
+  type PublicMapBossPoint,
   type PublicMapPlayerPoint,
   type PublicMapPublishResult,
   type PublicMapSettings,
@@ -25,8 +27,10 @@ import type { InstanceRecord, InstanceStore } from "./store.js";
 import type { DriverContext, ServerDriver } from "./driver.js";
 import { getLiveStatus } from "./restapi.js";
 import { getPdPlayers, getPdGuilds } from "./paldefender-rest.js";
+import { getBossReporterStatus } from "./boss-reporter.js";
 import { featureEnabled } from "./license.js";
 import type { PresenceTracker } from "./presence.js";
+import { FIELD_BOSS_CATALOG, TREE_BOSS_CATALOG } from "./boss-catalog.generated.js";
 
 /**
  * 公開地圖:服主一鍵把地圖公開到全網。贊助者先行版功能(public-map,見 @palserver/shared
@@ -93,6 +97,9 @@ export interface PublicMapAssembleInput {
    *  只有 showPlayers 與 showBases 都開啟時,呼叫端才會算這個集合;
    *  assemblePublicMapSnapshot 會再依 show.bases 把關一次,不信任呼叫端一定算對。 */
   raidingUserIds?: ReadonlySet<string>;
+  /** 野外/封印頭目重生狀態點(assemble() 已用 buildPublicMapBossPoints 配好);
+   *  只有 showBossRespawns 開啟時呼叫端才會填。 */
+  bosses?: PublicMapBossPoint[];
 }
 
 const round1 = (n: number): number => Math.round(n * 10) / 10;
@@ -201,6 +208,7 @@ export function assemblePublicMapSnapshot(
     offline: settings.showOfflinePlayers,
     bases: settings.showBases,
     guildNames: settings.showGuildNames && guildNamesUnlocked,
+    bossRespawns: settings.showBossRespawns,
   };
   const snapshot: PublicMapSnapshot = {
     v: 1,
@@ -224,6 +232,7 @@ export function assemblePublicMapSnapshot(
       return out;
     });
   }
+  if (show.bossRespawns && input.bosses?.length) snapshot.bosses = input.bosses;
   return snapshot;
 }
 
@@ -236,7 +245,7 @@ function offlineSnapshot(serverName: string, now = Date.now()): PublicMapSnapsho
     name: serverName,
     generatedAt: now,
     onlineCount: 0,
-    show: { players: false, names: false, offline: false, bases: false, guildNames: false },
+    show: { players: false, names: false, offline: false, bases: false, guildNames: false, bossRespawns: false },
   };
 }
 
@@ -273,7 +282,7 @@ export function minimalSnapshot(serverName: string, onlineCount: number, now: nu
     name: serverName,
     generatedAt: now,
     onlineCount,
-    show: { players: false, names: false, offline: false, bases: false, guildNames: false },
+    show: { players: false, names: false, offline: false, bases: false, guildNames: false, bossRespawns: false },
   };
 }
 
@@ -405,6 +414,7 @@ const PATCHABLE_KEYS = [
   "showOfflinePlayers",
   "showBases",
   "showGuildNames",
+  "showBossRespawns",
   "delayMinutes",
 ] as const satisfies readonly (keyof PublicMapSettings)[];
 
@@ -763,8 +773,21 @@ export class PublicMapPublisher {
       raidingUserIds = computeRaidingUserIds(live.players, pdPlayersList, pdGuildsList);
     }
 
+    // 頭目重生:只在開關開啟時才讀模組狀態檔(其餘圖層同款「只在開啟時才 fetch」慣例)。
+    // getBossReporterStatus 本身已自我防護(非 Windows / 模組未裝 / 狀態檔缺都回 null),
+    // 這裡的 .catch(() => null) 是雙重保險,不讓頭目層的失敗中斷整份快照組裝。
+    let bosses: PublicMapBossPoint[] = [];
+    if (settings.showBossRespawns) {
+      const boss = await getBossReporterStatus(rec, ctx).catch(() => null);
+      bosses = buildPublicMapBossPoints(
+        boss?.state ?? null,
+        { field: FIELD_BOSS_CATALOG, tree: TREE_BOSS_CATALOG },
+        Math.floor(Date.now() / 1000),
+      );
+    }
+
     return assemblePublicMapSnapshot(
-      { serverName, onlineCount, maxPlayers, online, offline, bases, raidingUserIds },
+      { serverName, onlineCount, maxPlayers, online, offline, bases, raidingUserIds, bosses },
       settings,
       guildNamesUnlocked,
     );

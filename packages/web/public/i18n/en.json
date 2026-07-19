@@ -1637,6 +1637,8 @@
   "顯示離線玩家最後位置": "Show offline players' last known positions",
   "顯示公會據點": "Show guild bases",
   "顯示公會名稱": "Show guild names",
+  "顯示頭目重生": "Show boss respawns",
+  "在地圖上標示頭目死活與重生倒數": "Mark boss alive/dead and respawn countdown on the map",
   "延遲發布": "Publish delay",
   "即時": "Instant",
   "延遲 5 分鐘": "Delay 5 minutes",

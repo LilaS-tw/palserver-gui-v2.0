@@ -51,6 +51,10 @@ export interface MapDict {
   alphaPal: string;
   /** 頭目 tooltip 用:kind === 'sealed' 時顯示。 */
   sealedRealm: string;
+  /** tooltip:頭目存活。 */
+  bossAlive: string;
+  /** tooltip:「重生於 {HH:MM}」(dead)。 */
+  respawnsAt: (clock: string) => string;
   raidWarning: string;
   noPlayers: string;
   poweredBy: string;
@@ -87,6 +91,8 @@ const dict: Record<MapLang, MapDict> = {
     boss: '頭目',
     alphaPal: '阿爾法',
     sealedRealm: '封印領域',
+    bossAlive: '存活中',
+    respawnsAt: (c) => `重生於 ${c}`,
     raidWarning: '靠近他人據點',
     noPlayers: '目前沒有玩家在線上',
     poweredBy: 'palserver GUI 公開地圖',
@@ -120,6 +126,8 @@ const dict: Record<MapLang, MapDict> = {
     boss: '头目',
     alphaPal: '阿尔法',
     sealedRealm: '封印领域',
+    bossAlive: '存活中',
+    respawnsAt: (c) => `重生于 ${c}`,
     raidWarning: '靠近他人据点',
     noPlayers: '目前没有玩家在线上',
     poweredBy: 'palserver GUI 公开地图',
@@ -153,6 +161,8 @@ const dict: Record<MapLang, MapDict> = {
     boss: 'Boss',
     alphaPal: 'Alpha Pal',
     sealedRealm: 'Sealed Realm',
+    bossAlive: 'Alive',
+    respawnsAt: (c) => `Respawns at ${c}`,
     raidWarning: "Near another guild's base",
     noPlayers: 'No players online right now',
     poweredBy: 'Public map by palserver GUI',
@@ -186,6 +196,8 @@ const dict: Record<MapLang, MapDict> = {
     boss: 'ボス',
     alphaPal: 'アルファパル',
     sealedRealm: '封印領域',
+    bossAlive: '生存中',
+    respawnsAt: (c) => `${c} に復活`,
     raidWarning: '他ギルドの拠点に接近',
     noPlayers: '現在オンラインのプレイヤーはいません',
     poweredBy: 'palserver GUI 公開マップ',

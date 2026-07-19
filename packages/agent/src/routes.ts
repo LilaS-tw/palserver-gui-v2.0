@@ -1928,6 +1928,7 @@ export function registerRoutes(
           showOfflinePlayers: z.boolean().optional(),
           showBases: z.boolean().optional(),
           showGuildNames: z.boolean().optional(),
+          showBossRespawns: z.boolean().optional(),
           delayMinutes: z.union([z.literal(0), z.literal(5), z.literal(15)]).optional(),
         }),
       })

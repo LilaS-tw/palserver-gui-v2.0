@@ -7,7 +7,13 @@
  * 座標:模組回報的是 Unreal 世界座標,與 bosses.json 的地圖座標(±1000)配對前
  * 需先經 savToMap / savToWorldTreeMap 轉換(見 bossStateMapCoord)。
  */
-import { isWorldTreeCoord, savToMap, savToWorldTreeMap } from "./index.js";
+import {
+  isWorldTreeCoord,
+  savToMap,
+  savToWorldTreeMap,
+  type PublicMapArea,
+  type PublicMapBossPoint,
+} from "./index.js";
 
 export const BOSS_REPORTER_MOD_NAME = "PalserverBossReporter";
 /** 狀態檔相對遊戲安裝根的路徑(模組寫、agent 讀)。 */
@@ -215,4 +221,49 @@ export function isBossStateStale(
 ): boolean {
   if (!state) return false;
   return nowSec - state.generatedAt > maxAgeSec;
+}
+
+/** 公開地圖用:野外/封印頭目 catalog 條目(配對只需地圖座標)。 */
+export type PublicBossCatalogEntry = { x: number; y: number };
+
+/**
+ * 由模組回報的執行期狀態 + 主世界/世界樹兩份野外頭目 catalog,產出公開地圖快照要用的頭目狀態點。
+ * 在 agent 端執行(agent 是 @palserver/shared 成員,可直接用這些純函式),讓雲端 viewer
+ * 只需「按座標疊狀態」,不必自帶配對邏輯(viewer 非 workspace 成員)。
+ *
+ * 依世界分池(isWorldTreeCoord)→ assignReportedBosses 一對一 → bossRespawnInfo;
+ * 只發 status ∈ {alive, dead}(unknown 略,viewer 對未知頭目維持預設樣式);
+ * 點座標用 catalog 的地圖座標(與 viewer 自帶 bosses.json 同源,可精確 `${x},${y}` 配對)。
+ *
+ * state 為 null(未安裝模組 / 尚無回報)→ 回空陣列,快照就不帶 bosses 欄位、viewer 開關不出現。
+ * 註:地下城頭目不進地圖(頭目層已涵蓋),只在頭目重生分頁顯示。
+ */
+export function buildPublicMapBossPoints(
+  state: BossRespawnState | null,
+  catalogs: { field: readonly PublicBossCatalogEntry[]; tree: readonly PublicBossCatalogEntry[] },
+  nowSec: number,
+): PublicMapBossPoint[] {
+  const bosses: PublicMapBossPoint[] = [];
+  if (!state) return bosses;
+
+  const reported = state.bosses ?? [];
+  const worlds: { catalog: readonly PublicBossCatalogEntry[]; pool: BossStateEntry[]; m: PublicMapArea }[] = [
+    { catalog: catalogs.field, pool: reported.filter((e) => !isWorldTreeCoord(e.x)), m: "world" },
+    { catalog: catalogs.tree, pool: reported.filter((e) => isWorldTreeCoord(e.x)), m: "tree" },
+  ];
+  for (const w of worlds) {
+    const assign = assignReportedBosses(w.catalog, w.pool);
+    for (const [cat, entry] of assign) {
+      const info = bossRespawnInfo(entry, nowSec);
+      if (info.status === "unknown") continue;
+      const point: PublicMapBossPoint = { x: cat.x, y: cat.y, m: w.m, st: info.status };
+      if (info.status === "dead" && info.respawnAt != null) {
+        point.ra = info.respawnAt;
+        point.ms = info.measured;
+      }
+      bosses.push(point);
+    }
+  }
+
+  return bosses;
 }

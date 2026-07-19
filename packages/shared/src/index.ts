@@ -1204,6 +1204,9 @@ export interface PublicMapSettings {
   showOfflinePlayers: boolean;
   showBases: boolean;
   showGuildNames: boolean;
+  /** 頭目重生:在公開地圖疊野外/封印頭目的死活與重生倒數,並顯示地下城頭目層。
+   *  需伺服器已安裝 PalserverBossReporter 模組(否則快照無資料,viewer 開關不出現)。 */
+  showBossRespawns: boolean;
   /** 發布延遲(分鐘):0 = 即時;5 / 15 = 發布 N 分鐘前的緩衝快照,防止即時 PvP 用地圖抓位置。 */
   delayMinutes: 0 | 5 | 15;
 }
@@ -1215,6 +1218,7 @@ export const DEFAULT_PUBLIC_MAP_SETTINGS: PublicMapSettings = {
   showOfflinePlayers: false,
   showBases: true,
   showGuildNames: false,
+  showBossRespawns: false,
   delayMinutes: 0,
 };
 
@@ -1264,6 +1268,22 @@ export interface PublicMapBasePoint {
   c?: string;
 }
 
+/** 快照裡野外/封印頭目的重生狀態點。agent 端已用 assignReportedBosses 一對一配好,
+ *  以 bosses.json 的「地圖座標」為鍵發出(viewer 用 `${x},${y}` 疊到自帶靜態 marker 上,
+ *  故只需狀態、不需 name/icon)。只有 showBossRespawns 開啟且模組有回報時才出現。 */
+export interface PublicMapBossPoint {
+  x: number;
+  y: number;
+  m: PublicMapArea;
+  /** 'alive' | 'dead' | 'unknown'(對齊 shared BossLiveStatus;實際 unknown 不會發出)。 */
+  st: "alive" | "dead" | "unknown";
+  /** 預估重生 epoch 秒(st==='dead' 且觀測到擊殺時);否則省略。
+   *  ⚠ 單位是「秒」,與 generatedAt(毫秒)不同,消費端勿混用。 */
+  ra?: number;
+  /** 倒數採實測重生間隔(true)還是官方預設 3600s 估算(false/省略)。 */
+  ms?: boolean;
+}
+
 /** 公開地圖快照格式 v1 — 雲端 Worker 與公開 viewer 依此消費,欄位名不可改。
  *  過濾在 agent 端完成:被設定關掉的圖層,對應欄位整個省略(不是空陣列)。 */
 export interface PublicMapSnapshot {
@@ -1278,8 +1298,11 @@ export interface PublicMapSnapshot {
     offline: boolean;
     bases: boolean;
     guildNames: boolean;
+    bossRespawns: boolean;
   };
   players?: PublicMapPlayerPoint[];
   offline?: PublicMapPlayerPoint[];
   bases?: PublicMapBasePoint[];
+  /** 野外/封印頭目重生狀態(以地圖座標為鍵疊到 viewer 自帶靜態頭目 marker;省略=無資料)。 */
+  bosses?: PublicMapBossPoint[];
 }

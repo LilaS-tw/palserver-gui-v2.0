@@ -3,7 +3,7 @@ import test from "node:test";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import type { PdGuild, PdPlayerSummary, PublicMapSettings, RestPlayer } from "@palserver/shared";
+import type { PdGuild, PdPlayerSummary, PublicMapBossPoint, PublicMapSettings, RestPlayer } from "@palserver/shared";
 import { DEFAULT_PUBLIC_MAP_SETTINGS, WorldSettingsSchema, savToMap } from "@palserver/shared";
 import {
   anonymizedLabels,
@@ -181,6 +181,23 @@ test("assemblePublicMapSnapshot:showGuildNames 開啟但 guild-map 未解鎖時,
     (unlocked.bases ?? []).map((b) => b.g),
     ["公會A", "公會B"],
   );
+});
+
+test("assemblePublicMapSnapshot:showBossRespawns 開啟且 input.bosses 有料時,快照帶 show.bossRespawns:true 與 bosses 陣列", () => {
+  const bossPoints: PublicMapBossPoint[] = [{ x: -553, y: -1332, m: "world", st: "dead", ra: 12345, ms: true }];
+  const input = baseInput({ bosses: bossPoints });
+  const snap = assemblePublicMapSnapshot(input, settings({ showBossRespawns: true }), true);
+  assert.equal(snap.show.bossRespawns, true);
+  assert.deepEqual(snap.bosses, bossPoints);
+});
+
+test("assemblePublicMapSnapshot:showBossRespawns 關閉時,即使呼叫端帶了 input.bosses,快照也不含 bosses 欄位", () => {
+  const bossPoints: PublicMapBossPoint[] = [{ x: -553, y: -1332, m: "world", st: "alive" }];
+  const input = baseInput({ bosses: bossPoints });
+  const snap = assemblePublicMapSnapshot(input, settings({ showBossRespawns: false }), true);
+  assert.equal(snap.show.bossRespawns, false);
+  assert.equal(snap.bosses, undefined);
+  assert.equal("bosses" in snap, false);
 });
 
 // ── 偷襲警告(computeRaidingUserIds / assemblePublicMapSnapshot 的 warn 欄位)──
@@ -399,7 +416,14 @@ test("resolvePublishTarget:delayMinutes>0 且緩衝空 → 回傳最小快照,�
   assert.equal("players" in result, false);
   assert.equal("offline" in result, false);
   assert.equal("bases" in result, false);
-  assert.deepEqual(result.show, { players: false, names: false, offline: false, bases: false, guildNames: false });
+  assert.deepEqual(result.show, {
+    players: false,
+    names: false,
+    offline: false,
+    bases: false,
+    guildNames: false,
+    bossRespawns: false,
+  });
 
   // 對照組 1:delayMinutes<=0(使用者本來就要即時),緩衝空時直接送即時快照,不繞道最小快照。
   const immediate = resolvePublishTarget([], settings({ delayMinutes: 0 }), freshSnapshot, now);

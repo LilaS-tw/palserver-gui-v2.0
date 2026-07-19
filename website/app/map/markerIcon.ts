@@ -111,10 +111,15 @@ export function baseMarkerIcon(color: string): L.DivIcon {
 
 export const BOSS_MARKER_SIZE = 36;
 
-export function bossMarkerIcon(iconUrl: string | null, lv: number | undefined, kind?: 'field' | 'sealed'): L.DivIcon {
+export function bossMarkerIcon(
+  iconUrl: string | null,
+  lv: number | undefined,
+  kind?: 'field' | 'sealed',
+  dead?: boolean,
+): L.DivIcon {
   const BS = BOSS_MARKER_SIZE;
   const sealed = kind === 'sealed';
-  const wrapCls = sealed ? 'pmap2-boss pmap2-boss--sealed' : 'pmap2-boss';
+  const wrapCls = `${sealed ? 'pmap2-boss pmap2-boss--sealed' : 'pmap2-boss'}${dead ? ' pmap2-boss--dead' : ''}`;
   const badgeCls = sealed ? 'pmap2-boss-badge pmap2-boss-badge--sealed' : 'pmap2-boss-badge';
   const lvCls = sealed ? 'pmap2-boss-lv pmap2-boss-lv--sealed' : 'pmap2-boss-lv';
   // 皇冠(field):照抄 GUI 原樣。傳送門/菱形(sealed):同心菱形輪廓,暗示「封印門」,
