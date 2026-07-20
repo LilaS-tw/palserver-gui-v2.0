@@ -31,48 +31,20 @@ jobs:
         with:
           node-version: 22
           cache: pnpm
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
       - run: pnpm install --frozen-lockfile
 
       # 合一版(exe + 前端):esbuild bundle → Node SEA → release/
       - run: pnpm release:exe
 
-      # 将 pil-utils、Pillow、Skia 和 Python 冻结成独立工具，用户无需安装 Python。
-      - name: 构建消息卡片渲染器
+      # 使用最终 web 目录中的 WASM、字体和图标缓存生成一张真实 PNG。
+      - name: 消息卡片渲染冒烟测试
         shell: bash
         run: |
-          python -m pip install --upgrade pip
-          pip install -r scripts/message-card-renderer-requirements.txt pyinstaller==6.21.0
-          extra_args=()
-          if [[ "$RUNNER_OS" == "Linux" ]]; then
-            sudo apt-get update
-            sudo apt-get install -y --no-install-recommends libegl1
-            egl_library="$(ldconfig -p | awk '/libEGL\.so\.1/{print $NF; exit}')"
-            test -n "$egl_library"
-            extra_args+=(--add-binary "$egl_library:.")
-          fi
-          if [[ "$RUNNER_OS" == "Windows" ]]; then
-            curl -L -o icudtl.dat https://github.com/MeetWq/pil-utils/releases/download/v0.2.0/icudtl.dat
-            extra_args+=(--add-data "icudtl.dat:.")
-          fi
-          pyinstaller --clean --onedir --name bridge-card-renderer \
-            --exclude-module cv2 --exclude-module numpy \
-            --exclude-module pil_utils.build_image --exclude-module pil_utils.gradient \
-            "${extra_args[@]}" scripts/message-card-renderer.py
-          if [[ "$RUNNER_OS" == "Linux" ]]; then
-            find dist/bridge-card-renderer -name 'libEGL.so*' -print -quit | grep -q .
-          fi
-          cp -R dist/bridge-card-renderer release/web/.bridge-card-renderer
-          cp THIRD_PARTY_LICENSES.md release/web/THIRD_PARTY_LICENSES.md
-          python -c 'import json; open("renderer-smoke.json", "w", encoding="utf-8").write(json.dumps({"language":"zh-CN","pages":["[ 在线玩家 (1人) ]\n\n1. BiHan - Lv.60 - 87.82ms"]}, ensure_ascii=False))'
-          if [[ "$RUNNER_OS" == "Windows" ]]; then
-            ./release/web/.bridge-card-renderer/bridge-card-renderer.exe renderer-smoke.json renderer-smoke-output
-          else
-            ./release/web/.bridge-card-renderer/bridge-card-renderer renderer-smoke.json renderer-smoke-output
-          fi
-          test -f renderer-smoke-output/page-001.png
+          PALSERVER_WEB_DIR=packages/web/dist node --input-type=module -e '
+            const { renderMessageBridgeCards } = await import("./packages/agent/dist/message-card-renderer.js");
+            const images = await renderMessageBridgeCards(["[ 在线玩家 (1人) ]\n\n1. BiHan - Lv.60 - 87.82ms"], "zh-CN");
+            if (images.length !== 1 || images[0].subarray(1, 4).toString() !== "PNG") process.exit(1);
+          '
 
       # LICENSE.md 一定要跟著散布:PolyForm Noncommercial 的 Notices 條款要求
       # 拿到副本的人也拿得到條款(build-sea.mjs 已把它放進 release/)。

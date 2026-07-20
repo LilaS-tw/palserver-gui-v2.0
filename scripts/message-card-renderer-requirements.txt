@@ -1,2 +1,0 @@
-pil-utils==0.2.2
-typing-extensions>=4.12,<5

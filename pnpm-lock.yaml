@@ -17,6 +17,9 @@ importers:
       resedit:
         specifier: ^2.0.3
         version: 2.0.3
+      sharp:
+        specifier: 0.34.5
+        version: 0.34.5
 
   packages/agent:
     dependencies:
@@ -35,6 +38,9 @@ importers:
       '@palserver/shared':
         specifier: workspace:*
         version: link:../shared
+      '@resvg/resvg-wasm':
+        specifier: 2.6.2
+        version: 2.6.2
       dockerode:
         specifier: ^4.0.2
         version: 4.0.12
@@ -961,6 +967,10 @@ packages:
 
   '@protobufjs/utf8@1.1.2':
     resolution: {integrity: sha512-b1UQwcEZ4yCnMCD8DAL1VlbvBJE9/IX4FTIp7BG1xYpf29SLazLSrqUkj4w7Y5y7cCVP6E5tcqqcI0xemPkHug==}
+
+  '@resvg/resvg-wasm@2.6.2':
+    resolution: {integrity: sha512-FqALmHI8D4o6lk/LRWDnhw95z5eO+eAa6ORjVg09YRR7BkcM6oPHU9uyC0gtQG5vpFLvgpeU4+zEAz2H8APHNw==}
+    engines: {node: '>= 10'}
 
   '@rolldown/pluginutils@1.0.0-beta.27':
     resolution: {integrity: sha512-+d0F4MKMCbeVUJwG96uQ4SgAznZNSq93I3V+9NHA4OpvqG8mRCpGdKmK8l/dl02h2CCDHwW2FqilnTyDcAnqjA==}
@@ -3115,6 +3125,8 @@ snapshots:
   '@protobufjs/pool@1.1.0': {}
 
   '@protobufjs/utf8@1.1.2': {}
+
+  '@resvg/resvg-wasm@2.6.2': {}
 
   '@rolldown/pluginutils@1.0.0-beta.27': {}
 
