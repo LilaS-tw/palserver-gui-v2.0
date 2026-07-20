@@ -145,7 +145,7 @@ export function toDiscordPayload(env: WebhookEnvelope): unknown {
     "server.startup_failure": { title: "啟動失敗", description: s("detail") },
     "server.update_available": {
       title: "有新版本",
-      description: `${s("current")} → ${s("latest")}`,
+      description: s("latest") ? `${s("current")} → ${s("latest")}` : `目前 ${s("current")},有可用更新`,
     },
     "boss.killed": { title: "頭目被擊殺", description: s("name") },
     "boss.respawn": { title: "頭目重生", description: s("name") },
@@ -444,12 +444,21 @@ export class WebhooksService {
     });
   }
 
-  /** log-event-tracker 的 wants(id) 述詞:已授權且有啟用中的 webhook 訂閱 player log 事件。 */
-  wantsLogEvents(id: string): boolean {
+  /** 已授權且有啟用中的 webhook 訂閱到 `types` 任一事件 —— 背景 tracker 用它決定要不要追。 */
+  private wantsAny(id: string, types: WebhookEventType[]): boolean {
     if (!this.featureEnabledFn()) return false;
-    const LOG_EVENTS: WebhookEventType[] = ["player.chat", "player.death", "player.capture"];
     return readConfig(this.store, id).webhooks.some(
-      (w) => w.enabled && LOG_EVENTS.some((t) => eventMatches(w.events, t)),
+      (w) => w.enabled && types.some((t) => eventMatches(w.events, t)),
     );
+  }
+
+  /** log-event-tracker 的 wants(id):訂閱 player log 事件(chat/death/capture)。 */
+  wantsLogEvents(id: string): boolean {
+    return this.wantsAny(id, ["player.chat", "player.death", "player.capture"]);
+  }
+
+  /** boss-event-tracker 的 wants(id):訂閱 boss 事件(killed/respawn)。 */
+  wantsBossEvents(id: string): boolean {
+    return this.wantsAny(id, ["boss.killed", "boss.respawn"]);
   }
 }

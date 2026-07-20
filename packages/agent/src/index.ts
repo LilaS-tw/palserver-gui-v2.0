@@ -26,6 +26,7 @@ import { RestartSupervisor } from "./supervisor.js";
 import { PublicMapPublisher } from "./public-map.js";
 import { WebhooksService } from "./webhooks.js";
 import { LogEventTracker } from "./log-event-tracker.js";
+import { BossEventTracker } from "./boss-event-tracker.js";
 import { fetchLatest } from "./version.js";
 import { isInstalling, nativeDriver } from "./native.js";
 import { dockerDriver } from "./docker.js";
@@ -153,6 +154,9 @@ app.addHook("onRequest", async (req, reply) => {
 // Warm the Steam version cache so the first instance listing already knows
 // whether an update is available (it only ever reads the cache).
 void fetchLatest().catch(() => {});
+// 之後每 6 小時重新抓一次最新版本 —— 讓 supervisor 能在新版釋出時偵測到 false→true
+// 並發 server.update_available webhook(否則快取只停在啟動當下的狀態)。
+setInterval(() => void fetchLatest(true).catch(() => {}), 6 * 60 * 60_000).unref();
 
 const presence = new PresenceTracker(store);
 presence.start();
@@ -192,6 +196,13 @@ const logEventTracker = new LogEventTracker(
   (id) => webhooks.wantsLogEvents(id),
 );
 logEventTracker.start();
+
+const bossEventTracker = new BossEventTracker(
+  store,
+  (rec) => (rec.backend === "native" ? nativeDriver : rec.backend === "k8s" ? k8sDriver : dockerDriver),
+  (id) => webhooks.wantsBossEvents(id),
+);
+bossEventTracker.start();
 
 // 每小時自動掃描存檔(排行榜/週報資料;每實例可在排行榜分頁開關)
 startAutoScanLoop({
