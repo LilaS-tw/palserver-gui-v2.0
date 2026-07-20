@@ -2,7 +2,16 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { localizePalName } from "@palserver/shared";
 import { localizeItem, localizePassive, t, webPublic } from "./i18n.js";
-import { buildAdminGrantCommand, buildDiscordImageMultipart, buildOneBotForwardEnvelope, buildOneBotForwardNodes, formatGameEvent, formatInventoryReply, formatIvs, formatJoinLeave, formatPagedBridgeReply, formatPalLine, formatPlayerItem, mergeStoredBridgeConfig, normalizeDiscordProxyUrl, paginateBridgeReply, parseBridgeCommand, parseGameLogLine, parseRelayMessage, playerQueryIdentifier, resolveMessageBridgeRules, resolvePlayerIdentifier, resolveSavePlayer, saveInventoryToPdItems, savePalToPdPal, splitOneBotForwardContent } from "./message-bridge.js";
+import { buildAdminGrantCommand, buildDiscordImageMultipart, buildOneBotForwardEnvelope, buildOneBotForwardNodes, formatGameEvent, formatInventoryReply, formatIvs, formatJoinLeave, formatPagedBridgeReply, formatPalLine, formatPlayerItem, mergeStoredBridgeConfig, normalizeDiscordProxyUrl, paginateBridgeReply, parseBridgeCommand, parseGameLogLine, parseRelayMessage, playerQueryIdentifier, resolveMessageBridgeRules, resolvePlayerIdentifier, resolveSavePlayer, saveInventoryToPdItems, savePalToPdPal, splitOneBotForwardContent, webhookKind } from "./message-bridge.js";
+
+test("webhookKind 依 URL 認出平台(含 Discord channel webhook)", () => {
+  assert.equal(webhookKind("https://discord.com/api/webhooks/123/abc"), "discord");
+  assert.equal(webhookKind("https://discordapp.com/api/webhooks/123/abc"), "discord");
+  assert.equal(webhookKind("https://open.feishu.cn/open-apis/bot/v2/hook/xxx"), "feishu");
+  assert.equal(webhookKind("https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=xxx"), "wecom");
+  assert.equal(webhookKind("https://my-relay.example.com/hook"), "custom");
+  assert.equal(webhookKind("not a url"), "custom");
+});
 
 test("parses PalDefender chat", () => {
   assert.deepEqual(

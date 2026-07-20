@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import crypto from "node:crypto";
 import https from "node:https";
 import type { Agent as HttpAgent } from "node:http";
 import path from "node:path";
@@ -707,11 +708,18 @@ class DiscordAdapter extends ReconnectingAdapter {
       const socket = new WebSocket("wss://gateway.discord.gg/?v=10&encoding=json", { agent: this.networkAgent });
       this.socket = socket;
       socket.on("message", (data) => this.handleFrame(data.toString()));
-      socket.on("close", () => {
+      socket.on("close", (code: number) => {
         if (this.heartbeat) clearInterval(this.heartbeat);
         this.heartbeat = null;
         if (this.socket === socket) this.socket = null;
-        this.retry("Discord Gateway 已断开");
+        // 把 close code 帶進錯誤訊息,讓「連不上」看得出真正原因(否則只有一句通用字串)。
+        this.retry(
+          code === 4014
+            ? "Discord 拒絕特權 intent(4014):請到 Developer Portal 開啟 Message Content Intent,或關閉此頻道的『群訊息轉發到遊戲』"
+            : code === 4004
+              ? "Discord 驗證失敗(4004):bot token 無效"
+              : `Discord Gateway 已斷開${code ? `(${code})` : ""}`,
+        );
       });
       socket.on("error", (err) => this.retry(err));
     } catch (err) { this.retry(err); }
@@ -720,7 +728,10 @@ class DiscordAdapter extends ReconnectingAdapter {
     const frame = JSON.parse(raw) as { op: number; s?: number; t?: string; d?: any };
     if (typeof frame.s === "number") this.sequence = frame.s;
     if (frame.op === 10) {
-      this.sendGateway(2, { token: this.config.token, intents: (1 << 9) | (1 << 15), properties: { os: process.platform, browser: "palserver-gui", device: "palserver-gui" } });
+      // MESSAGE_CONTENT(1<<15)是 Discord 特權 intent(Developer Portal 預設關閉);只在此頻道
+      // 需要「群訊息轉發到遊戲」時才要求,否則純通知頻道會被 Discord 以 close 4014 踢掉、永遠連不上。
+      const intents = (1 << 9) | (this.config.relayGroupToGame ? 1 << 15 : 0);
+      this.sendGateway(2, { token: this.config.token, intents, properties: { os: process.platform, browser: "palserver-gui", device: "palserver-gui" } });
       this.heartbeat = setInterval(() => this.sendGateway(1, this.sequence), Number(frame.d.heartbeat_interval));
       this.heartbeat.unref();
     } else if (frame.op === 1) this.sendGateway(1, this.sequence);
@@ -833,6 +844,33 @@ class TelegramAdapter extends ReconnectingAdapter {
   }
 }
 
+/** 依 webhook URL 主機認出目標平台,決定送出的 payload 格式。 */
+export type WebhookKind = "discord" | "feishu" | "wecom" | "custom";
+export function webhookKind(url: string): WebhookKind {
+  try {
+    const host = new URL(url).hostname.toLowerCase();
+    if (host === "discord.com" || host === "discordapp.com" || host.endsWith(".discord.com")) return "discord";
+    if (host === "open.feishu.cn" || host === "open.larksuite.com") return "feishu";
+    if (host === "qyapi.weixin.qq.com") return "wecom";
+  } catch {
+    /* URL 無效 → 當自建中轉 */
+  }
+  return "custom";
+}
+/** 送出後驗證是否真的成功。飛書/企業微信送失敗常回 HTTP 200 但 body 帶非 0 錯誤碼 —— 主動檢查,別靜默吞掉。 */
+async function assertWebhookOk(response: Response, kind: WebhookKind): Promise<void> {
+  if (!response.ok) throw new Error(`Webhook HTTP ${response.status}`);
+  if (kind === "wecom" || kind === "feishu") {
+    const data = (await response.json().catch(() => null)) as
+      | { errcode?: number; errmsg?: string; code?: number; msg?: string }
+      | null;
+    const code = data?.errcode ?? data?.code;
+    if (typeof code === "number" && code !== 0) {
+      throw new Error(`Webhook 回應錯誤 ${code}: ${data?.errmsg ?? data?.msg ?? ""}`);
+    }
+  }
+}
+
 class WebhookAdapter implements Adapter {
   platform = "webhook" as const;
   get id(): string { return this.config.id; }
@@ -840,25 +878,36 @@ class WebhookAdapter implements Adapter {
   constructor(private config: StoredWebhookChannel, private onState: (c: boolean, e?: string) => void) {}
   start(): void { this.onState(true); }
   stop(): void { this.onState(false); }
+  private headers(kind: WebhookKind): Record<string, string> {
+    const h: Record<string, string> = { "Content-Type": "application/json" };
+    // 自訂 secret 只對「自建中轉」帶(Discord/飛書/企業微信各自用 URL 內的 token 認證)。
+    if (kind === "custom" && this.config.secret) h["X-Palserver-Secret"] = this.config.secret;
+    return h;
+  }
   async send(text: string): Promise<void> {
+    const kind = webhookKind(this.config.url);
+    const body =
+      kind === "discord" ? { content: text.slice(0, 2000), allowed_mentions: { parse: [] } }
+      : kind === "feishu" ? { msg_type: "text", content: { text } }
+      : kind === "wecom" ? { msgtype: "text", text: { content: text } }
+      : { text, source: "palserver-gui", at: new Date().toISOString() };
     const response = await fetch(this.config.url, {
-      method: "POST", headers: { "Content-Type": "application/json", ...(this.config.secret ? { "X-Palserver-Secret": this.config.secret } : {}) },
-      body: JSON.stringify({ text, source: "palserver-gui", at: new Date().toISOString() }), signal: AbortSignal.timeout(API_TIMEOUT_MS),
+      method: "POST", headers: this.headers(kind), body: JSON.stringify(body), signal: AbortSignal.timeout(API_TIMEOUT_MS),
     });
-    if (!response.ok) throw new Error(`Webhook HTTP ${response.status}`);
+    await assertWebhookOk(response, kind);
   }
   private async sendImages(images: readonly Buffer[]): Promise<void> {
+    const kind = webhookKind(this.config.url);
     for (const [index, image] of images.entries()) {
+      // 企業微信支援 base64+md5 直傳圖片;其餘(自建中轉;飛書 webhook 不支援直傳圖片)沿用內建 JSON shape。
+      const body =
+        kind === "wecom"
+          ? { msgtype: "image", image: { base64: image.toString("base64"), md5: crypto.createHash("md5").update(image).digest("hex") } }
+          : { image: { contentType: "image/png", filename: `palserver-${index + 1}.png`, base64: image.toString("base64") }, source: "palserver-gui", at: new Date().toISOString() };
       const response = await fetch(this.config.url, {
-        method: "POST", headers: { "Content-Type": "application/json", ...(this.config.secret ? { "X-Palserver-Secret": this.config.secret } : {}) },
-        body: JSON.stringify({
-          image: { contentType: "image/png", filename: `palserver-${index + 1}.png`, base64: image.toString("base64") },
-          source: "palserver-gui",
-          at: new Date().toISOString(),
-        }),
-        signal: AbortSignal.timeout(API_TIMEOUT_MS),
+        method: "POST", headers: this.headers(kind), body: JSON.stringify(body), signal: AbortSignal.timeout(API_TIMEOUT_MS),
       });
-      if (!response.ok) throw new Error(`Webhook HTTP ${response.status}`);
+      await assertWebhookOk(response, kind);
     }
   }
   async sendCommandReply(text: string, options?: QueryReplyOptions): Promise<void> {
@@ -977,10 +1026,16 @@ export class MessageBridgeService {
         });
       };
       const state = (connected: boolean, error?: string) => this.setState(id, channel.id, connected, error);
-      if (channel.platform === "onebot" && channel.wsUrl && channel.groupId) adapters.push(new OneBotAdapter(channel, onMessage, state));
-      if (channel.platform === "discord" && channel.token && channel.channelId) adapters.push(new DiscordAdapter(channel, onMessage, state));
-      if (channel.platform === "telegram" && channel.token && channel.chatId) adapters.push(new TelegramAdapter(channel, onMessage, state));
-      if (channel.platform === "webhook" && channel.url) adapters.push(new WebhookAdapter(channel, state));
+      // 單一 channel 建構失敗(例:Discord proxy 設定無效)只標記該 channel 錯誤並跳過,
+      // 不可讓例外中斷整個迴圈、拖垮同實例其他 channel(含 webhook)。
+      try {
+        if (channel.platform === "onebot" && channel.wsUrl && channel.groupId) adapters.push(new OneBotAdapter(channel, onMessage, state));
+        else if (channel.platform === "discord" && channel.token && channel.channelId) adapters.push(new DiscordAdapter(channel, onMessage, state));
+        else if (channel.platform === "telegram" && channel.token && channel.chatId) adapters.push(new TelegramAdapter(channel, onMessage, state));
+        else if (channel.platform === "webhook" && channel.url) adapters.push(new WebhookAdapter(channel, state));
+      } catch (err) {
+        this.setState(id, channel.id, false, err instanceof Error ? err.message : String(err));
+      }
     }
     const latestPresence = this.presence.events(id, 1)[0];
     const runtime: Runtime = {
@@ -993,7 +1048,13 @@ export class MessageBridgeService {
       lastPresenceKey: latestPresence ? this.presenceKey(latestPresence) : "",
     };
     this.runtimes.set(id, runtime);
-    for (const adapter of adapters) adapter.start();
+    for (const adapter of adapters) {
+      try {
+        adapter.start();
+      } catch (err) {
+        this.setState(id, adapter.id, false, err instanceof Error ? err.message : String(err));
+      }
+    }
     await this.attachLogs(rec, runtime);
   }
   private stopRuntime(id: string): void {
