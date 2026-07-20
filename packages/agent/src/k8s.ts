@@ -303,7 +303,6 @@ export const k8sDriver: ServerDriver = {
     onLine: (line: string) => void,
     onEnd: () => void,
     _source?: LogSourceId,
-    replay = 200,
   ): Promise<() => void> {
     const namespace = rec.k8sNamespace!;
     const statefulSet = rec.k8sStatefulSet!;
@@ -332,7 +331,7 @@ export const k8sDriver: ServerDriver = {
     const logger = new k8s.Log(kc);
     const abort = await logger.log(namespace, podName, "", out, {
       follow: true,
-      tailLines: replay,
+      tailLines: 200,
     });
 
     return () => {

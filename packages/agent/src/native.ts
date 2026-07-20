@@ -1010,10 +1010,10 @@ export const nativeDriver: ServerDriver = {
     return [{ id: "game" as const, label: "遊戲(原生)", available: fs.existsSync(gameLogFile(ctx)) }];
   },
 
-  async streamLogs(rec, ctx, onLine, _onEnd, source = "agent", replay = 200) {
+  async streamLogs(rec, ctx, onLine, _onEnd, source = "agent") {
     // Files may not exist yet (first boot) — the followers attach when they
     // appear, so the socket stays open instead of closing early.
-    if (source === "game") return followFile(gameLogFile(ctx), onLine, replay);
+    if (source === "game") return followFile(gameLogFile(ctx), onLine, 200);
     if (source === "paldefender") {
       const dir = palDefenderLogDir(rec, ctx);
       if (!dir) {
@@ -1022,10 +1022,10 @@ export const nativeDriver: ServerDriver = {
       }
       // PalDefender writes a new, timestamped file per run; follow the newest
       // and switch over when it rotates.
-      return followNewestInDir(dir, onLine, replay);
+      return followNewestInDir(dir, onLine);
     }
     // "agent": our own capture — install progress and server stdout.
-    return followFile(logFile(ctx), onLine, replay);
+    return followFile(logFile(ctx), onLine);
   },
 };
 
@@ -1094,7 +1094,7 @@ function newestFile(dir: string, sinceMs?: number): string | null {
 }
 
 /** Follow whichever file in `dir` is newest, re-attaching when it rotates. */
-function followNewestInDir(dir: string, onLine: (line: string) => void, replay = 200): () => void {
+function followNewestInDir(dir: string, onLine: (line: string) => void): () => void {
   let current: string | null = null;
   let stopCurrent: (() => void) | null = null;
   const timer = setInterval(() => {
@@ -1102,17 +1102,14 @@ function followNewestInDir(dir: string, onLine: (line: string) => void, replay =
     if (newest && newest !== current) {
       stopCurrent?.();
       current = newest;
-      // A rotation mid-run means a new server process — replay a little so the
-      // consumer doesn't miss lines written between polls (UI wants context;
-      // replay=0 consumers still get only genuinely new lines going forward).
       onLine(`— 跟隨日誌檔:${path.basename(newest)} —`);
-      stopCurrent = followFile(newest, onLine, replay);
+      stopCurrent = followFile(newest, onLine, 200);
     }
   }, 1000);
   const initial = newestFile(dir);
   if (initial) {
     current = initial;
-    stopCurrent = followFile(initial, onLine, replay);
+    stopCurrent = followFile(initial, onLine, 200);
   }
   return () => {
     clearInterval(timer);

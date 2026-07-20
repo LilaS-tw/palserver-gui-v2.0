@@ -24,9 +24,6 @@ import { PresenceTracker } from "./presence.js";
 import { BackupScheduler } from "./backup-scheduler.js";
 import { RestartSupervisor } from "./supervisor.js";
 import { PublicMapPublisher } from "./public-map.js";
-import { WebhooksService } from "./webhooks.js";
-import { LogEventTracker } from "./log-event-tracker.js";
-import { BossEventTracker } from "./boss-event-tracker.js";
 import { fetchLatest } from "./version.js";
 import { isInstalling, nativeDriver } from "./native.js";
 import { dockerDriver } from "./docker.js";
@@ -154,9 +151,6 @@ app.addHook("onRequest", async (req, reply) => {
 // Warm the Steam version cache so the first instance listing already knows
 // whether an update is available (it only ever reads the cache).
 void fetchLatest().catch(() => {});
-// 之後每 6 小時重新抓一次最新版本 —— 讓 supervisor 能在新版釋出時偵測到 false→true
-// 並發 server.update_available webhook(否則快取只停在啟動當下的狀態)。
-setInterval(() => void fetchLatest(true).catch(() => {}), 6 * 60 * 60_000).unref();
 
 const presence = new PresenceTracker(store);
 presence.start();
@@ -184,26 +178,6 @@ const publicMap = new PublicMapPublisher(
 );
 publicMap.start();
 
-// Webhook / Discord 機器人整合(贊助限定):dispatcher 訂閱事件匯流排,對已啟用的
-// webhook 簽章推送 + 重試。log-event-tracker 只在「已授權且有訂閱 player.* log 事件」
-// 的執行中實例才起 follower(wantsLogEvents),避免無訂閱時空轉。
-const webhooks = new WebhooksService(store, AGENT_VERSION);
-webhooks.start();
-
-const logEventTracker = new LogEventTracker(
-  store,
-  (rec) => (rec.backend === "native" ? nativeDriver : rec.backend === "k8s" ? k8sDriver : dockerDriver),
-  (id) => webhooks.wantsLogEvents(id),
-);
-logEventTracker.start();
-
-const bossEventTracker = new BossEventTracker(
-  store,
-  (rec) => (rec.backend === "native" ? nativeDriver : rec.backend === "k8s" ? k8sDriver : dockerDriver),
-  (id) => webhooks.wantsBossEvents(id),
-);
-bossEventTracker.start();
-
 // 每小時自動掃描存檔(排行榜/週報資料;每實例可在排行榜分頁開關)
 startAutoScanLoop({
   list: () => store.list(),
@@ -226,7 +200,7 @@ const updateOps: UpdateOps = {
   log: (msg) => app.log.info(`[update] ${msg}`),
 };
 
-registerRoutes(app, store, presence, scheduler, supervisor, publicMap, webhooks, auth, updateOps);
+registerRoutes(app, store, presence, scheduler, supervisor, publicMap, auth, updateOps);
 
 await app.listen({ host: HOST, port: PORT });
 

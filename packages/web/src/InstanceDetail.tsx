@@ -13,7 +13,6 @@ import { PalDefenderTab } from "./PalDefenderTab";
 import { PalStatsTab } from "./PalStatsTab";
 import { BossRespawnTab } from "./BossRespawnTab";
 import { BreedingTab } from "./BreedingTab";
-import { WebhookSettingsTab } from "./WebhookSettingsTab";
 import { PlayersTab } from "./PlayersTab";
 import { GuildsTab } from "./GuildsTab";
 import { LeaderboardTab } from "./LeaderboardTab";
@@ -618,7 +617,6 @@ export function InstanceDetailPage({
         <SavesTab client={client} instanceId={detail.id} running={detail.status === "running"} />
       )}
       {tab === "restart" && <RestartCard client={client} instanceId={detail.id} />}
-      {tab === "webhooks" && <WebhookSettingsTab client={client} instanceId={detail.id} />}
       {tab === "instance" && (
         <InstanceSettingsTab client={client} detail={detail} onChanged={refresh} onDeleted={onDeleted} />
       )}

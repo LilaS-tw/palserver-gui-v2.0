@@ -5,7 +5,6 @@ import type { InstanceStore, InstanceRecord } from "./store.js";
 import type { ServerDriver } from "./driver.js";
 import { activeWorldGuidAsync, createBackup, pruneBackups } from "./saves.js";
 import { rest } from "./restapi.js";
-import { emitAgentEvent } from "./events.js";
 
 /**
  * Runs scheduled backups of each instance's active world.
@@ -74,9 +73,10 @@ export class BackupScheduler {
       try {
         await this.runFor(rec, schedule);
       } catch (err) {
-        const error = err instanceof Error ? err.message : String(err);
-        this.update(rec.id, { lastRunAt: new Date().toISOString(), lastResult: `失敗:${error}` });
-        emitAgentEvent("backup.failed", rec.id, { error });
+        this.update(rec.id, {
+          lastRunAt: new Date().toISOString(),
+          lastResult: `失敗:${err instanceof Error ? err.message : String(err)}`,
+        });
       }
     }
   }
@@ -105,7 +105,6 @@ export class BackupScheduler {
 
     const guid = await activeWorldGuidAsync(rec, ctx);
     if (!guid) {
-      emitAgentEvent("backup.failed", rec.id, { error: "GameUserSettings.ini 未指定 DedicatedServerName" });
       return this.update(rec.id, {
         lastRunAt: new Date().toISOString(),
         lastResult: "失敗:GameUserSettings.ini 未指定 DedicatedServerName",
@@ -114,7 +113,6 @@ export class BackupScheduler {
 
     const backup = await createBackup(rec, ctx, guid);
     const pruned = pruneBackups(ctx, guid, schedule.keep);
-    emitAgentEvent("backup.completed", rec.id, { path: backup.name });
     return this.update(rec.id, {
       lastRunAt: new Date().toISOString(),
       lastResult:

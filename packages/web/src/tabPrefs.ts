@@ -17,7 +17,6 @@ export type Tab =
   | "breeding"
   | "saves"
   | "restart"
-  | "webhooks"
   | "instance";
 
 /** 分頁顯示順序與標籤(label 會過 i18n)。「設定」刻意排在「日誌」右邊。 */
@@ -37,7 +36,6 @@ export const TABS: { id: Tab; label: string }[] = [
   { id: "breeding", label: "配種計算" },
   { id: "saves", label: "存檔備份" },
   { id: "restart", label: "伺服器重啟" },
-  { id: "webhooks", label: "Webhook" },
   { id: "instance", label: "設定" },
 ];
 
