@@ -16,6 +16,7 @@ import { rconExec } from "./rcon.js";
 import { localizeItem, localizePassive, t } from "./i18n.js";
 import { activeWorldGuidAsync } from "./saves.js";
 import { getPlayerProfile, getPlayersSummary } from "./save-tools.js";
+import { renderMessageBridgeCards } from "./message-card-renderer.js";
 
 const API_TIMEOUT_MS = 10_000;
 const RECONNECT_MS = 5_000;
@@ -45,7 +46,7 @@ interface Adapter {
   start(): void;
   stop(): void;
   send(text: string): Promise<void>;
-  sendQueryReply(text: string, options: QueryReplyOptions): Promise<void>;
+  sendCommandReply(text: string, options?: QueryReplyOptions): Promise<void>;
 }
 interface Runtime {
   config: StoredBridgeConfig;
@@ -527,7 +528,11 @@ abstract class ReconnectingAdapter implements Adapter {
   protected abstract connect(): Promise<void>;
   protected abstract close(): void;
   abstract send(text: string): Promise<void>;
-  async sendQueryReply(text: string, _options: QueryReplyOptions): Promise<void> { await this.send(text); }
+  async sendCommandReply(text: string, _options?: QueryReplyOptions): Promise<void> {
+    const images = await renderMessageBridgeCards([text], this.language);
+    await this.sendImages(images);
+  }
+  protected abstract sendImages(images: readonly Buffer[]): Promise<void>;
 }
 
 class OneBotAdapter extends ReconnectingAdapter {
@@ -535,8 +540,6 @@ class OneBotAdapter extends ReconnectingAdapter {
   get id(): string { return this.config.id; }
   get language(): MessageBridgeLanguage { return this.config.language; }
   private socket: WebSocket | null = null;
-  private selfId = "";
-  private botNickname = "PalServer";
   private actionSequence = 0;
   private pendingActions = new Map<string, { resolve: (data: Record<string, unknown>) => void; reject: (error: Error) => void; timer: NodeJS.Timeout }>();
   constructor(private config: StoredOneBotChannel, onMessage: (m: AdapterIncomingMessage) => void, onState: (c: boolean, e?: string) => void) { super(onMessage, onState); }
@@ -547,10 +550,6 @@ class OneBotAdapter extends ReconnectingAdapter {
       this.socket = socket;
       socket.on("open", () => {
         this.onState(true);
-        void this.sendAction("get_login_info", {}).then((data) => {
-          this.selfId = cleanText(data.user_id, 128) || this.selfId;
-          this.botNickname = cleanText(data.nickname, 80) || this.botNickname;
-        }).catch(() => {});
       });
       socket.on("message", (data) => {
         try {
@@ -564,7 +563,6 @@ class OneBotAdapter extends ReconnectingAdapter {
             else pending.reject(new Error(cleanText(event.message || event.wording, 300) || `OneBot retcode ${event.retcode ?? "unknown"}`));
             return;
           }
-          this.selfId = cleanText(event.self_id, 128) || this.selfId;
           if (event.post_type !== "message" || event.message_type !== "group") return;
           if (String(event.group_id) !== this.config.groupId || event.self_id === event.user_id) return;
           const sender = (event.sender ?? {}) as Record<string, unknown>;
@@ -607,11 +605,18 @@ class OneBotAdapter extends ReconnectingAdapter {
     if (!this.socket || this.socket.readyState !== WebSocket.OPEN) throw new Error("OneBot 未连接");
     this.socket.send(JSON.stringify({ action: "send_group_msg", params: { group_id: this.config.groupId, message: text } }));
   }
-  async sendQueryReply(text: string, _options: QueryReplyOptions): Promise<void> {
+  protected async sendImages(images: readonly Buffer[]): Promise<void> {
+    for (const image of images) {
+      await this.sendAction("send_group_msg", {
+        group_id: this.config.groupId,
+        message: [{ type: "image", data: { file: `base64://${image.toString("base64")}` } }],
+      });
+    }
+  }
+  async sendCommandReply(text: string, options?: QueryReplyOptions): Promise<void> {
     if (!this.socket || this.socket.readyState !== WebSocket.OPEN) throw new Error("OneBot 未连接");
-    const pages = splitOneBotForwardContent(text);
-    const nodes = buildOneBotForwardEnvelope(pages, this.selfId, this.botNickname);
-    await this.sendAction("send_group_forward_msg", { group_id: this.config.groupId, messages: nodes });
+    void options;
+    await this.sendImages(await renderMessageBridgeCards([text], this.language));
   }
 }
 
@@ -630,6 +635,22 @@ export function normalizeDiscordProxyUrl(value: string): string {
 function discordProxyAgent(proxyUrl: string): HttpAgent {
   const normalized = normalizeDiscordProxyUrl(proxyUrl);
   return normalized.startsWith("socks") ? new SocksProxyAgent(normalized) : new HttpsProxyAgent(normalized);
+}
+
+export function buildDiscordImageMultipart(images: readonly Buffer[], boundary = `palserver-${Date.now().toString(36)}`): { body: Buffer; contentType: string } {
+  const chunks: Buffer[] = [];
+  const append = (value: string | Buffer) => chunks.push(typeof value === "string" ? Buffer.from(value) : value);
+  const attachments = images.map((_, index) => ({ id: index, filename: `palserver-${index + 1}.png` }));
+  append(`--${boundary}\r\nContent-Disposition: form-data; name="payload_json"\r\nContent-Type: application/json\r\n\r\n`);
+  append(JSON.stringify({ attachments, allowed_mentions: { parse: [] } }));
+  append("\r\n");
+  images.forEach((image, index) => {
+    append(`--${boundary}\r\nContent-Disposition: form-data; name="files[${index}]"; filename="palserver-${index + 1}.png"\r\nContent-Type: image/png\r\n\r\n`);
+    append(image);
+    append("\r\n");
+  });
+  append(`--${boundary}--\r\n`);
+  return { body: Buffer.concat(chunks), contentType: `multipart/form-data; boundary=${boundary}` };
 }
 
 class DiscordAdapter extends ReconnectingAdapter {
@@ -682,13 +703,12 @@ class DiscordAdapter extends ReconnectingAdapter {
     this.socket?.close();
     this.socket = null;
   }
-  async send(text: string): Promise<void> {
-    const body = JSON.stringify({ content: text.slice(0, 2000), allowed_mentions: { parse: [] } });
+  private async request(body: string | Buffer, contentType: string): Promise<void> {
     const status = await new Promise<number>((resolve, reject) => {
       const request = https.request(`https://discord.com/api/v10/channels/${encodeURIComponent(this.config.channelId)}/messages`, {
         method: "POST",
         agent: this.networkAgent,
-        headers: { Authorization: `Bot ${this.config.token}`, "Content-Type": "application/json", "Content-Length": Buffer.byteLength(body) },
+        headers: { Authorization: `Bot ${this.config.token}`, "Content-Type": contentType, "Content-Length": Buffer.byteLength(body) },
         signal: AbortSignal.timeout(API_TIMEOUT_MS),
       }, (response) => {
         response.resume();
@@ -699,8 +719,18 @@ class DiscordAdapter extends ReconnectingAdapter {
     });
     if (status < 200 || status >= 300) throw new Error(`Discord HTTP ${status}`);
   }
-  async sendQueryReply(text: string, options: QueryReplyOptions): Promise<void> {
-    await this.send(formatPagedBridgeReply(text, 1950, options, this.language));
+  async send(text: string): Promise<void> {
+    await this.request(JSON.stringify({ content: text.slice(0, 2000), allowed_mentions: { parse: [] } }), "application/json");
+  }
+  protected async sendImages(images: readonly Buffer[]): Promise<void> {
+    for (let offset = 0; offset < images.length; offset += 10) {
+      const multipart = buildDiscordImageMultipart(images.slice(offset, offset + 10));
+      await this.request(multipart.body, multipart.contentType);
+    }
+  }
+  async sendCommandReply(text: string, options?: QueryReplyOptions): Promise<void> {
+    void options;
+    await this.sendImages(await renderMessageBridgeCards([text], this.language));
   }
 }
 
@@ -750,8 +780,20 @@ class TelegramAdapter extends ReconnectingAdapter {
     });
     if (!response.ok) throw new Error(`Telegram HTTP ${response.status}`);
   }
-  async sendQueryReply(text: string, options: QueryReplyOptions): Promise<void> {
-    await this.send(formatPagedBridgeReply(text, 4000, options, this.language));
+  protected async sendImages(images: readonly Buffer[]): Promise<void> {
+    for (const image of images) {
+      const form = new FormData();
+      form.set("chat_id", this.config.chatId);
+      form.set("photo", new Blob([new Uint8Array(image)], { type: "image/png" }), "palserver.png");
+      const response = await fetch(`https://api.telegram.org/bot${this.config.token}/sendPhoto`, {
+        method: "POST", body: form, signal: AbortSignal.timeout(API_TIMEOUT_MS),
+      });
+      if (!response.ok) throw new Error(`Telegram HTTP ${response.status}`);
+    }
+  }
+  async sendCommandReply(text: string, options?: QueryReplyOptions): Promise<void> {
+    void options;
+    await this.sendImages(await renderMessageBridgeCards([text], this.language));
   }
 }
 
@@ -769,7 +811,24 @@ class WebhookAdapter implements Adapter {
     });
     if (!response.ok) throw new Error(`Webhook HTTP ${response.status}`);
   }
-  async sendQueryReply(text: string, _options: QueryReplyOptions): Promise<void> { await this.send(text); }
+  private async sendImages(images: readonly Buffer[]): Promise<void> {
+    for (const [index, image] of images.entries()) {
+      const response = await fetch(this.config.url, {
+        method: "POST", headers: { "Content-Type": "application/json", ...(this.config.secret ? { "X-Palserver-Secret": this.config.secret } : {}) },
+        body: JSON.stringify({
+          image: { contentType: "image/png", filename: `palserver-${index + 1}.png`, base64: image.toString("base64") },
+          source: "palserver-gui",
+          at: new Date().toISOString(),
+        }),
+        signal: AbortSignal.timeout(API_TIMEOUT_MS),
+      });
+      if (!response.ok) throw new Error(`Webhook HTTP ${response.status}`);
+    }
+  }
+  async sendCommandReply(text: string, options?: QueryReplyOptions): Promise<void> {
+    void options;
+    await this.sendImages(await renderMessageBridgeCards([text], this.language));
+  }
 }
 
 export class MessageBridgeService {
@@ -1113,7 +1172,7 @@ export class MessageBridgeService {
     const runtime = this.runtimes.get(id);
     const adapter = runtime?.adapters.find((candidate) => candidate.id === channelId);
     if (!adapter) return;
-    try { await (query ? adapter.sendQueryReply(text, query) : adapter.send(text)); this.setState(id, channelId, true); }
+    try { await adapter.sendCommandReply(text, query); this.setState(id, channelId, true); }
     catch (err) { this.setState(id, channelId, false, err instanceof Error ? err.message : String(err)); }
   }
   private async broadcast(

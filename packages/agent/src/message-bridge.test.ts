@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { localizePalName } from "@palserver/shared";
 import { localizeItem, localizePassive, t, webPublic } from "./i18n.js";
-import { buildAdminGrantCommand, buildOneBotForwardEnvelope, buildOneBotForwardNodes, formatGameEvent, formatInventoryReply, formatIvs, formatJoinLeave, formatPagedBridgeReply, formatPalLine, formatPlayerItem, mergeStoredBridgeConfig, normalizeDiscordProxyUrl, paginateBridgeReply, parseBridgeCommand, parseGameLogLine, parseRelayMessage, playerQueryIdentifier, resolveMessageBridgeRules, resolvePlayerIdentifier, resolveSavePlayer, saveInventoryToPdItems, savePalToPdPal, splitOneBotForwardContent } from "./message-bridge.js";
+import { buildAdminGrantCommand, buildDiscordImageMultipart, buildOneBotForwardEnvelope, buildOneBotForwardNodes, formatGameEvent, formatInventoryReply, formatIvs, formatJoinLeave, formatPagedBridgeReply, formatPalLine, formatPlayerItem, mergeStoredBridgeConfig, normalizeDiscordProxyUrl, paginateBridgeReply, parseBridgeCommand, parseGameLogLine, parseRelayMessage, playerQueryIdentifier, resolveMessageBridgeRules, resolvePlayerIdentifier, resolveSavePlayer, saveInventoryToPdItems, savePalToPdPal, splitOneBotForwardContent } from "./message-bridge.js";
 
 test("parses PalDefender chat", () => {
   assert.deepEqual(
@@ -214,6 +214,15 @@ test("keeps short OneBot replies as direct forward nodes", () => {
     buildOneBotForwardEnvelope(["first", "second"], "3161195955", "H0vvaro1"),
     buildOneBotForwardNodes(["first", "second"], "3161195955", "H0vvaro1"),
   );
+});
+
+test("builds Discord multipart image attachments without message text", () => {
+  const multipart = buildDiscordImageMultipart([Buffer.from("png")], "test-boundary");
+  const body = multipart.body.toString("latin1");
+  assert.equal(multipart.contentType, "multipart/form-data; boundary=test-boundary");
+  assert.match(body, /name="payload_json"/);
+  assert.match(body, /name="files\[0\]"; filename="palserver-1\.png"/);
+  assert.doesNotMatch(body, /"content"/);
 });
 
 test("groups OneBot pal replies into title, team, and storage nodes", () => {

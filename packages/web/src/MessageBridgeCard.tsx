@@ -347,11 +347,37 @@ function SecretField({ label, value, saved, onChange }: { label: string; value: 
 }
 
 function AdminField({ value, onChange }: { value: string[]; onChange: (value: string[]) => void }) {
-  const [raw, setRaw] = useState(value.join("\n"));
-  useEffect(() => setRaw(value.join("\n")), [value]);
-  const parse = (raw: string) => [...new Set(raw.split(/[\s,，]+/).map((id) => id.trim()).filter(Boolean))].slice(0, 50);
-  return <label className={`${labelCls} sm:col-span-2`}>
-    <span className="inline-flex items-center gap-1.5"><FiShield className="text-pal" />{t("渠道管理员用户 ID")}</span>
-    <textarea className={`${inputCls} min-h-20 resize-y font-mono text-xs`} value={raw} onChange={(e) => { setRaw(e.target.value); onChange(parse(e.target.value)); }} placeholder={t("每行一个用户 ID；群内发送 /whoami 可查询")} />
-  </label>;
+  const rows = value.length > 0 ? value : [""];
+  const update = (index: number, id: string) => onChange(rows.map((row, rowIndex) => rowIndex === index ? id : row));
+  const remove = (index: number) => onChange(rows.length === 1 ? [] : rows.filter((_, rowIndex) => rowIndex !== index));
+  return <fieldset className={`${labelCls} sm:col-span-2`}>
+    <legend className="inline-flex items-center gap-1.5"><FiShield className="text-pal" />{t("渠道管理员用户 ID")}</legend>
+    <div className="flex flex-col gap-2">
+      {rows.map((id, index) => <div key={index} className="flex items-center gap-2">
+        <input
+          className={`${inputCls} min-w-0 flex-1 font-mono text-xs`}
+          value={id}
+          onChange={(event) => update(index, event.target.value)}
+          placeholder={t("群内发送 /whoami 可查询用户 ID")}
+          aria-label={`${t("渠道管理员用户 ID")} ${index + 1}`}
+        />
+        <button
+          type="button"
+          className="grid size-9 shrink-0 place-items-center rounded-lg text-ink-muted transition hover:bg-danger/10 hover:text-danger disabled:cursor-not-allowed disabled:opacity-40"
+          disabled={rows.length === 1 && !id}
+          onClick={() => remove(index)}
+          title={t("移除管理员")}
+          aria-label={t("移除管理员")}
+        ><FiTrash2 /></button>
+      </div>)}
+      <button
+        type="button"
+        className="grid size-9 place-items-center rounded-lg border-2 border-dashed border-line text-pal transition hover:border-pal hover:bg-card-soft disabled:cursor-not-allowed disabled:opacity-40"
+        disabled={rows.length >= 50}
+        onClick={() => onChange([...rows, ""])}
+        title={t("添加管理员")}
+        aria-label={t("添加管理员")}
+      ><FiPlus /></button>
+    </div>
+  </fieldset>;
 }

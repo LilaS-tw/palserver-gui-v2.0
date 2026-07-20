@@ -31,22 +31,50 @@ jobs:
         with:
           node-version: 22
           cache: pnpm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
       - run: pnpm install --frozen-lockfile
 
       # 合一版(exe + 前端):esbuild bundle → Node SEA → release/
       - run: pnpm release:exe
+
+      # 将 pil-utils、Pillow、Skia 和 Python 冻结成独立工具，用户无需安装 Python。
+      - name: 构建消息卡片渲染器
+        shell: bash
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r scripts/message-card-renderer-requirements.txt pyinstaller==6.21.0
+          extra_args=()
+          if [[ "$RUNNER_OS" == "Windows" ]]; then
+            curl -L -o icudtl.dat https://github.com/MeetWq/pil-utils/releases/download/v0.2.0/icudtl.dat
+            extra_args+=(--add-data "icudtl.dat:.")
+          fi
+          pyinstaller --clean --onedir --name bridge-card-renderer \
+            --exclude-module cv2 --exclude-module numpy \
+            --exclude-module pil_utils.build_image --exclude-module pil_utils.gradient \
+            "${extra_args[@]}" scripts/message-card-renderer.py
+          cp -R dist/bridge-card-renderer release/web/.bridge-card-renderer
+          cp THIRD_PARTY_LICENSES.md release/web/THIRD_PARTY_LICENSES.md
+          python -c 'import json; open("renderer-smoke.json", "w", encoding="utf-8").write(json.dumps({"language":"zh-CN","pages":["[ 在线玩家 (1人) ]\n\n1. BiHan - Lv.60 - 87.82ms"]}, ensure_ascii=False))'
+          if [[ "$RUNNER_OS" == "Windows" ]]; then
+            ./release/web/.bridge-card-renderer/bridge-card-renderer.exe renderer-smoke.json renderer-smoke-output
+          else
+            ./release/web/.bridge-card-renderer/bridge-card-renderer renderer-smoke.json renderer-smoke-output
+          fi
+          test -f renderer-smoke-output/page-001.png
 
       # LICENSE.md 一定要跟著散布:PolyForm Noncommercial 的 Notices 條款要求
       # 拿到副本的人也拿得到條款(build-sea.mjs 已把它放進 release/)。
       - name: 打包 zip(合一版,Unix)
         if: runner.os != 'Windows'
         shell: bash
-        run: cd release && zip -r ../palserver-agent-${{ matrix.artifact }}.zip palserver-agent web LICENSE.md
+        run: cd release && zip -r ../palserver-agent-${{ matrix.artifact }}.zip palserver-agent web LICENSE.md THIRD_PARTY_LICENSES.md
 
       - name: 打包 zip(合一版,Windows)
         if: runner.os == 'Windows'
         shell: pwsh
-        run: Compress-Archive -Path release/palserver-agent.exe, release/web, release/LICENSE.md -DestinationPath palserver-agent-${{ matrix.artifact }}.zip
+        run: Compress-Archive -Path release/palserver-agent.exe, release/web, release/LICENSE.md, release/THIRD_PARTY_LICENSES.md -DestinationPath palserver-agent-${{ matrix.artifact }}.zip
 
       # zip 是給人手動下載的;自我更新讀這包 tar.gz(tar 在 Win10+/mac/Linux 都內建,
       # 且能保留執行權限與 macOS 的 ad-hoc 簽章)。
@@ -65,7 +93,7 @@ jobs:
       - name: 打包純 web 版
         if: matrix.artifact == 'linux'
         shell: bash
-        run: cp LICENSE.md packages/web/dist/ && cd packages/web/dist && zip -r ../../../palserver-web.zip .
+        run: cp LICENSE.md THIRD_PARTY_LICENSES.md packages/web/dist/ && cd packages/web/dist && zip -r ../../../palserver-web.zip .
 
       - uses: actions/upload-artifact@v4
         if: matrix.artifact == 'linux'
