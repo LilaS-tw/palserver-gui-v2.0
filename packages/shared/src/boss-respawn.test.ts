@@ -94,6 +94,31 @@ test("bossRespawnInfo:死後又重生、現在觀測到活著 → 活著", () =>
   assert.equal(r.status, "alive");
 });
 
+test("bossRespawnInfo:實測倒數超過寬容期還沒被觀測到復活 → 退回未知,不再無止盡負數倒數(回歸測試)", () => {
+  const died = 1000;
+  const measured = 1200;
+  const respawnAt = died + measured;
+  // 剛過期(寬容期內):仍算已擊殺,secondsLeft 為負。
+  const justOver = bossRespawnInfo(entry({ alive: false, diedAt: died, respawnInterval: measured }), respawnAt + 100);
+  assert.equal(justOver.status, "dead");
+  assert.ok(justOver.secondsLeft !== null && justOver.secondsLeft < 0);
+  // 超過寬容期:退回未知,secondsLeft 不再繼續累加負數。
+  const wayOver = bossRespawnInfo(
+    entry({ alive: false, diedAt: died, respawnInterval: measured }),
+    respawnAt + 45 * 60 + 1,
+  );
+  assert.equal(wayOver.status, "unknown");
+  assert.equal(wayOver.secondsLeft, null);
+});
+
+test("bossRespawnInfo:未實測(約下個遊戲日)超過寬容期沒刷新 → 退回未知,不再永遠卡在已擊殺(回歸測試)", () => {
+  const died = 1000;
+  const justOver = bossRespawnInfo(entry({ alive: false, diedAt: died }), died + 20 * 60); // 20 分,寬容期(45 分)內
+  assert.equal(justOver.status, "dead");
+  const wayOver = bossRespawnInfo(entry({ alive: false, diedAt: died }), died + 45 * 60 + 1);
+  assert.equal(wayOver.status, "unknown");
+});
+
 test("matchReportedBoss:半徑內取最近,半徑外回 null", () => {
   // 造一個地圖座標 (0,0) 的 spawner:savToMap 反解 → savX=-123888, savY=158000
   const atOrigin = entry({ x: -123888, y: 158000 });

@@ -155,6 +155,14 @@ export function assignReportedBosses<T extends { x: number; y: number }>(
 
 export type BossLiveStatus = "alive" | "dead" | "unknown";
 
+/**
+ * 未實測到重生間隔時,「已擊殺(約下個遊戲日重生)」最多顯示這麼久;超過就當作應已重生、退回未知。
+ * 野外頭目綁「下個遊戲黎明」重生,沒有可靠固定秒數(見 .claude/notes/wild-boss-respawn-research.md);
+ * 預設日夜流速下一個遊戲日 ≈ 32 分現實時間,取 45 分留裕度。沒有玩家在場確認重生時,靠這個窗口
+ * 讓狀態自動退場,避免永遠卡在「已擊殺」。(流速調很慢的伺服器可能偏早退場;總比永遠不刷新好。)
+ */
+export const WILD_BOSS_RESPAWN_GRACE_SEC = 45 * 60;
+
 /** 由一筆 spawner 狀態算出的顯示資訊(死活 + 重生倒數)。 */
 export interface BossRespawnInfo {
   status: BossLiveStatus;
@@ -194,9 +202,14 @@ export function bossRespawnInfo(entry: BossStateEntry | null, nowSec: number): B
   if (diedAt !== null && diedAt > lastRespawn) {
     if (entry.respawnInterval > 0) {
       const respawnAt = diedAt + entry.respawnInterval;
+      // 早該重生卻遲遲沒被模組觀測到「活」(附近沒玩家、或這隻其實已被捕捉/沒重新生成)——
+      // 倒數不能永遠往負的跑下去。超過寬容期就退回「未知」,而不是無止盡的負數倒數(使用者回報的 bug)。
+      if (nowSec - respawnAt > WILD_BOSS_RESPAWN_GRACE_SEC) return none;
       return { status: "dead", diedAt, respawnAt, secondsLeft: respawnAt - nowSec, measured: true };
     }
-    // 已擊殺,但沒實測到重生間隔 → 重生時間不定(下個遊戲日),不給假倒數。
+    // 已擊殺,但沒實測到重生間隔 → 重生時間不定(下個遊戲日)。同樣的道理:擊殺過了寬容期
+    // 還沒被觀測到復活,就不要一直卡在「已擊殺」不動(使用者回報的另一個 bug)——退回未知。
+    if (nowSec - diedAt > WILD_BOSS_RESPAWN_GRACE_SEC) return none;
     return { status: "dead", diedAt, respawnAt: null, secondsLeft: null, measured: false };
   }
   return none;
