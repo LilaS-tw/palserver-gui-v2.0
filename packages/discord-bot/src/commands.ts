@@ -46,10 +46,6 @@ function relativeTime(iso: string | null): string | null {
   return `<t:${Math.floor(ms / 1000)}:R>`;
 }
 
-/** 對外位址若沒帶 port 就補上遊戲埠(playit.gg 等隧道位址常已含 port)。 */
-function withPort(address: string, gamePort: number): string {
-  return address.includes(":") ? address : `${address}:${gamePort}`;
-}
 
 /**
  * 指令描述採 bot 設定的單一語言(見 DiscordBotSettings.language)。**必須是函式而非模組級常數**:
@@ -243,33 +239,6 @@ export function buildCommands(): BotCommand[] {
   },
 
   // ── 資訊 / 社群 ────────────────────────────────────────────────────────
-  {
-    json: new SlashCommandBuilder().setName("join").setDescription(t("查看連線位址(怎麼加入伺服器)")).toJSON(),
-    admin: false,
-    ephemeral: false,
-    run: async (_interaction, instance) => {
-      const c = await agent.connection(instance.id);
-      const lines: string[] = [];
-      if (c.externalAddress) lines.push(`**${t("對外位址")}** \`${withPort(c.externalAddress, c.gamePort)}\``);
-      for (const v of c.vpns.slice(0, 2)) lines.push(`**${v.name}** \`${v.address}:${c.gamePort}\``);
-      if (c.publicIp && !c.externalAddress) {
-        lines.push(
-          `**${t("公網")}** \`${c.publicIp}:${c.gamePort}\`${c.behindNat ? t("(需在路由器設定連接埠轉發)") : ""}`,
-        );
-      }
-      // 不列區網(LAN)位址:那只有同網段的人能用,對 Discord 上的遠端玩家沒意義還造成誤導。
-      return brandEmbed({
-        color: BRAND.primary,
-        title: t("如何加入伺服器"),
-        description:
-          lines.length > 0
-            ? t("在 Palworld 主選單「加入多人遊戲」輸入:\n{lines}", { lines: lines.join("\n") })
-            : t("目前無法取得連線位址。"),
-        instanceName: instance.name,
-      });
-    },
-  },
-
   {
     json: new SlashCommandBuilder().setName("version").setDescription(t("查看遊戲版本與更新狀態")).toJSON(),
     admin: false,

@@ -84,20 +84,6 @@ const DICTS: Record<string, Dict> = {
   伺服器已停止: { en: "Server stopped", ja: "サーバー停止済み", "zh-CN": "服务器已停止" },
   "可用 /start 重新啟動。": { en: "Use /start to bring it back up.", ja: "/start で再起動できます。", "zh-CN": "可用 /start 重新启动。" },
 
-  // ── /join ──
-  "查看連線位址(怎麼加入伺服器)": { en: "Show the connection address (how to join)", ja: "接続アドレスを表示(参加方法)", "zh-CN": "查看连接地址(怎么加入服务器)" },
-  對外位址: { en: "External address", ja: "外部アドレス", "zh-CN": "对外地址" },
-  公網: { en: "Public IP", ja: "パブリック IP", "zh-CN": "公网" },
-  "(需在路由器設定連接埠轉發)": { en: " (port forwarding required on your router)", ja: "(ルーターでポート転送の設定が必要)", "zh-CN": "(需在路由器设置端口转发)" },
-  區網: { en: "LAN", ja: "LAN", "zh-CN": "局域网" },
-  如何加入伺服器: { en: "How to join the server", ja: "サーバーへの参加方法", "zh-CN": "如何加入服务器" },
-  "在 Palworld 主選單「加入多人遊戲」輸入:\n{lines}": {
-    en: 'In Palworld\'s main menu, choose "Join Multiplayer Game" and enter:\n{lines}',
-    ja: "Palworld のメインメニューで「マルチプレイに参加」を選び、以下を入力してください:\n{lines}",
-    "zh-CN": "在 Palworld 主菜单「加入多人游戏」输入:\n{lines}",
-  },
-  "目前無法取得連線位址。": { en: "Connection address unavailable right now.", ja: "現在接続アドレスを取得できません。", "zh-CN": "目前无法取得连接地址。" },
-
   // ── /version ──
   查看遊戲版本與更新狀態: { en: "Show the game version and update status", ja: "ゲームのバージョンと更新状況を表示", "zh-CN": "查看游戏版本与更新状态" },
   無法查詢版本: { en: "Unable to check version", ja: "バージョンを確認できません", "zh-CN": "无法查询版本" },

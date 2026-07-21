@@ -57,7 +57,7 @@ function CredentialRow({ label, value, secret }: { label: string; value: string;
 const COMMANDS: { name: string; desc: string; admin: boolean }[] = [
   { name: "/players", desc: "查看在線玩家", admin: false },
   { name: "/status", desc: "查看伺服器狀態", admin: false },
-  { name: "/join", desc: "查看連線位址", admin: false },
+  { name: "/map", desc: "公開地圖連結", admin: false },
   { name: "/version", desc: "查看版本與更新", admin: false },
   { name: "/top", desc: "等級排行榜", admin: false },
   { name: "/guilds", desc: "公會清單", admin: false },

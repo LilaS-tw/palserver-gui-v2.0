@@ -37,6 +37,11 @@ export interface RunningBot {
   stop(): Promise<void>;
 }
 
+/** Discord API 10062 = Unknown interaction(互動已逾時/失效);對這種互動無法再回覆,視為良性。 */
+function isExpiredInteraction(err: unknown): boolean {
+  return typeof err === "object" && err !== null && "code" in err && (err as { code?: number }).code === 10062;
+}
+
 /**
  * 啟動 Discord bot:建立 gateway client、自動註冊 slash 指令、把互動轉成對 agent 的 REST 呼叫。
  * standalone(index.ts)與 agent 同機內嵌(PALSERVER_RUN_BOT)共用這一支;差別只在參數怎麼來。
@@ -59,7 +64,13 @@ export function startBot(opts: StartBotOptions): RunningBot {
   });
 
   // slash 指令走 Interactions,不需要讀訊息內容,所以只要 Guilds intent。
-  const client = new Client({ intents: [GatewayIntentBits.Guilds] });
+  // rest 放寬:defer 之後 Discord 給 15 分鐘完成處理並回覆,長操作(update/backup/restart)沒問題;
+  // 對連線較慢的主機,把每次 REST 請求的逾時與重試次數調高,讓回覆階段更耐得住暫時的網路延遲。
+  // (注意:初始 ack 的 3 秒是 Discord 伺服器端硬性限制,無法從這裡延長。)
+  const client = new Client({
+    intents: [GatewayIntentBits.Guilds],
+    rest: { timeout: 30_000, retries: 5 },
+  });
   const commands = buildCommands();
   const commandMap = new Map(commands.map((c) => [c.json.name, c]));
   const commandBody = commands.map((c) => c.json);
@@ -118,18 +129,35 @@ export function startBot(opts: StartBotOptions): RunningBot {
       return;
     }
 
-    await interaction.deferReply(command.ephemeral ? { flags: MessageFlags.Ephemeral } : undefined);
+    // ack 必須在 Discord 建立互動後 3 秒內送達,否則互動失效(10062)。這裡 defer 是收到互動後的
+    // 第一件事;若仍逾時,代表 gateway 遞送 + REST 往返 > 3 秒(與 Discord 的連線延遲),對這次
+    // 互動無能為力 —— 記一句話略過,不噴堆疊。
+    try {
+      await interaction.deferReply(command.ephemeral ? { flags: MessageFlags.Ephemeral } : undefined);
+    } catch (err) {
+      if (isExpiredInteraction(err)) {
+        console.warn(`[discord-bot] /${interaction.commandName} 互動已逾時(3 秒內未能回應 Discord,通常是連線延遲)`);
+        return;
+      }
+      throw err;
+    }
 
     try {
       const instance = await resolveInstance();
       const embed = await command.run(interaction, instance);
       await interaction.editReply({ embeds: [embed] });
     } catch (err) {
+      if (isExpiredInteraction(err)) return; // 互動中途失效,無從回覆
       const message = err instanceof AgentError || err instanceof Error ? err.message : String(err);
       console.error(`[discord-bot] /${interaction.commandName} 執行失敗:`, message);
-      await interaction.editReply({
-        embeds: [brandEmbed({ color: BRAND.danger, title: t("操作失敗"), description: message })],
-      });
+      // editReply 本身也可能因互動失效而拋錯 —— 包起來,別讓它逃逸。
+      try {
+        await interaction.editReply({
+          embeds: [brandEmbed({ color: BRAND.danger, title: t("操作失敗"), description: message })],
+        });
+      } catch {
+        /* 互動已失效,無法回覆 */
+      }
     }
   }
 
@@ -168,10 +196,14 @@ export function startBot(opts: StartBotOptions): RunningBot {
     try {
       await handleCommand(interaction);
     } catch (err) {
-      console.error(
-        `[discord-bot] /${interaction.commandName} 互動處理未預期錯誤:`,
-        err instanceof Error ? (err.stack ?? err.message) : err,
-      );
+      if (isExpiredInteraction(err)) {
+        console.warn(`[discord-bot] /${interaction.commandName} 互動已逾時(3 秒內未能回應 Discord,通常是連線延遲)`);
+      } else {
+        console.error(
+          `[discord-bot] /${interaction.commandName} 互動處理未預期錯誤:`,
+          err instanceof Error ? (err.stack ?? err.message) : err,
+        );
+      }
     }
   });
 
