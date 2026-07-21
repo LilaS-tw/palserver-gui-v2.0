@@ -113,6 +113,7 @@ export function DiscordBotTab({ client, instanceId }: { client: AgentClient; ins
       adminUserIds?: string[];
       notifyChannelId?: string;
       notifyEvents?: string[];
+      statusChannelId?: string;
     }): Promise<DiscordBotStatus | null> => {
       setBusy(true);
       setErr(null);
@@ -185,6 +186,7 @@ export function DiscordBotTab({ client, instanceId }: { client: AgentClient; ins
   const enabled = !!status?.settings.enabled;
   const adminIds = status?.settings.adminUserIds ?? [];
   const notifyChannel = status?.settings.notifyChannelId ?? "";
+  const statusChannel = status?.settings.statusChannelId ?? "";
   const notifyEvents = new Set((status?.settings.notifyEvents ?? []) as WebhookEventType[]);
 
   const addAdmin = async () => {
@@ -387,6 +389,30 @@ export function DiscordBotTab({ client, instanceId }: { client: AgentClient; ins
           <span className="text-xs font-bold text-ink-muted">{t("要通知的事件")}</span>
           <EventPicker selected={notifyEvents} onChange={(next) => void mutate({ notifyEvents: [...next] })} />
         </div>
+      </section>
+
+      <section className={card}>
+        <h4 className="text-sm font-extrabold">{t("狀態面板")}</h4>
+        <p className="mt-1 text-xs text-ink-muted">
+          {t("讓 bot 在指定頻道維護一則「每分鐘自動更新」的伺服器狀態訊息(在線玩家、FPS、運行時間…),不會洗版。")}
+        </p>
+        <label className={`${labelCls} mt-3`}>
+          <span>{t("狀態面板頻道 ID")}</span>
+          <input
+            key={statusChannel}
+            defaultValue={statusChannel}
+            onBlur={(e) => {
+              const v = e.currentTarget.value.trim();
+              if (v !== statusChannel) void mutate({ statusChannelId: v });
+            }}
+            placeholder={t("貼上頻道 ID(留空 = 不顯示狀態面板)")}
+            inputMode="numeric"
+            className={inputCls}
+          />
+        </label>
+        <p className="mt-1 text-[11px] text-ink-muted">
+          {t("建議用獨立的 #status 頻道。bot 需要該頻道的發言與讀取訊息歷史權限;更改頻道後 bot 會自動重啟套用。")}
+        </p>
       </section>
 
       <section className={card}>

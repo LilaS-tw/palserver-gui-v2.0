@@ -10,6 +10,7 @@ import {
 } from "discord.js";
 import { AgentError, configureAgent, resolveInstance } from "./agent.js";
 import { commands } from "./commands.js";
+import { startStatusPanel } from "./status-panel.js";
 import { BRAND, brandEmbed } from "./theme.js";
 
 export interface StartBotOptions {
@@ -23,6 +24,8 @@ export interface StartBotOptions {
   instanceId?: string;
   /** 管理員白名單(whitelist-only):只有這些 Discord user id 能用管理指令。留空 = 沒人能用。 */
   adminUserIds?: string[];
+  /** 狀態面板頻道 id(留空 = 不顯示):bot 在該頻道維護一則每分鐘自動更新的伺服器狀態 embed。 */
+  statusChannelId?: string;
 }
 
 export interface RunningBot {
@@ -110,9 +113,13 @@ export function startBot(opts: StartBotOptions): RunningBot {
     }
   }
 
+  let statusPanel: { stop(): void } | null = null;
+
   client.once(Events.ClientReady, async (readyClient) => {
     console.log(`[discord-bot] 已上線:${readyClient.user.tag}`);
     await registerGuildCommands(readyClient);
+    // 狀態面板:指定頻道維護一則每分鐘自動更新的伺服器狀態 embed(見 status-panel.ts)。
+    if (opts.statusChannelId) statusPanel = startStatusPanel(readyClient, opts.statusChannelId);
     try {
       const instance = await resolveInstance();
       readyClient.user.setActivity(instance.name, { type: ActivityType.Watching });
@@ -148,6 +155,7 @@ export function startBot(opts: StartBotOptions): RunningBot {
 
   return {
     stop: async () => {
+      statusPanel?.stop();
       await client.destroy();
     },
   };

@@ -1249,6 +1249,8 @@ export interface DiscordBotSettings {
   notifyChannelId?: string;
   /** 要通知的事件型別(同 webhook 的訂閱語法:精確 / "player.*" / "*")。空陣列 = 不發。 */
   notifyEvents: string[];
+  /** 狀態面板頻道 id(留空 = 不顯示):bot 在該頻道維護一則每分鐘自動更新的伺服器狀態 embed。 */
+  statusChannelId?: string;
 }
 
 export const DEFAULT_DISCORD_BOT_SETTINGS: DiscordBotSettings = {

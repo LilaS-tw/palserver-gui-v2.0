@@ -2035,6 +2035,7 @@ export function registerRoutes(
     adminUserIds: z.array(z.string().trim().min(1)).optional(),
     notifyChannelId: z.string().trim().optional(),
     notifyEvents: z.array(z.string().min(1)).optional(),
+    statusChannelId: z.string().trim().optional(),
   });
 
   app.get("/api/instances/:id/discord-bot", async (req, reply) => {

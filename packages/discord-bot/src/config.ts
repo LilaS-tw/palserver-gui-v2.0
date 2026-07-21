@@ -7,6 +7,7 @@ export interface BotConfig {
   agentToken: string;
   instanceId?: string;
   adminUserIds: string[];
+  statusChannelId?: string;
 }
 
 /** 逗號分隔的 id 字串 → 去空白、去空項的陣列。 */
@@ -40,5 +41,7 @@ export function loadConfigFromEnv(): BotConfig {
     instanceId: process.env.AGENT_INSTANCE_ID?.trim() || undefined,
     // 管理員白名單(whitelist-only):逗號分隔的 Discord user id。
     adminUserIds: parseIds(process.env.DISCORD_ADMIN_IDS),
+    // 選填:狀態面板頻道 id(bot 在該頻道維護一則每分鐘自動更新的伺服器狀態 embed)。
+    statusChannelId: process.env.DISCORD_STATUS_CHANNEL_ID?.trim() || undefined,
   };
 }

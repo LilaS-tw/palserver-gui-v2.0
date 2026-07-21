@@ -626,6 +626,7 @@ export class AgentClient {
       adminUserIds?: string[];
       notifyChannelId?: string;
       notifyEvents?: string[];
+      statusChannelId?: string;
     },
   ): Promise<DiscordBotStatus> {
     return this.request(`/api/instances/${id}/discord-bot`, {

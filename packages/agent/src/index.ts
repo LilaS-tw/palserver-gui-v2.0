@@ -58,6 +58,7 @@ if (process.env.PALSERVER_RUN_BOT) {
       .split(",")
       .map((s) => s.trim())
       .filter(Boolean),
+    statusChannelId: process.env.DISCORD_STATUS_CHANNEL_ID?.trim() || undefined,
   });
   return;
 }

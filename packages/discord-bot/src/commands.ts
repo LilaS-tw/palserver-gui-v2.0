@@ -21,7 +21,7 @@ export interface BotCommand {
   run: (interaction: ChatInputCommandInteraction, instance: CommandInstance) => Promise<EmbedBuilder>;
 }
 
-function formatUptime(totalSeconds: number): string {
+export function formatUptime(totalSeconds: number): string {
   const seconds = Math.max(0, Math.floor(totalSeconds));
   const days = Math.floor(seconds / 86400);
   const hours = Math.floor((seconds % 86400) / 3600);
