@@ -341,7 +341,11 @@ async function killLeftoverProcessesUnder(
         [
           "-NoProfile",
           "-Command",
-          `Get-Process | Where-Object { $_.Path -like '${psRoot}\\*' } | Select-Object Id,ProcessName | ConvertTo-Json -Compress`,
+          // 用 Win32_Process(CIM)讀 ExecutablePath,不要用 Get-Process 的 .Path:
+          // .Path 需開啟目標行程控制代碼讀 MainModule,對某些行程(權限/位元差異)會拋錯而被
+          // 靜默略過 → 殘留的 PalServer 漏抓、繼續鎖住 dwmapi.dll 擋住更新(長期的「沒真正關掉」bug)。
+          // CIM 直接讀核心行程記錄,列舉更可靠、涵蓋到那些漏抓的殘留行程。
+          `Get-CimInstance Win32_Process | Where-Object { $_.ExecutablePath -like '${psRoot}\\*' } | ForEach-Object { [pscustomobject]@{ Id = $_.ProcessId; ProcessName = $_.Name } } | ConvertTo-Json -Compress`,
         ],
         { windowsHide: true, timeout: 15000 },
         (err, out) => (err ? reject(err) : resolve(out)),
