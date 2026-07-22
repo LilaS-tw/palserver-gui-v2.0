@@ -304,7 +304,20 @@ interface GitRelease {
   tag_name: string;
   prerelease: boolean;
   draft: boolean;
-  assets: { name: string; browser_download_url: string }[];
+  assets: { name: string; browser_download_url: string; updated_at?: string }[];
+}
+
+/** release 的顯示版本。固定 tag 的元件(如 UE4SS Okaetsu experimental-palworld)tag 不會變,
+ *  改用「標準資產的建置日期(updated_at)」當版本 —— 這樣才標得出版本、且 Okaetsu 重新上傳新
+ *  建置時(同 tag、新日期)偵測得到「有新版」。非固定 tag 的元件照用 tag_name。 */
+function releaseVersion(component: ModComponent, release: GitRelease): string {
+  const cfg = GH_REPOS[component];
+  if (cfg.tag) {
+    const asset = release.assets.find((a) => cfg.asset.test(a.name));
+    const date = asset?.updated_at?.slice(0, 10); // YYYY-MM-DD
+    return date ? `${cfg.tag} (${date})` : cfg.tag;
+  }
+  return release.tag_name;
 }
 
 /** 各元件的最新穩定版 tag(6 小時記憶體快取;查詢失敗回 null,不丟錯)。
@@ -328,7 +341,7 @@ export async function latestModVersions(): Promise<Record<ModComponent, string |
       const res = await fetch(endpoint, {
         headers: { "user-agent": "palserver-gui", accept: "application/vnd.github+json" },
       });
-      const tag = res.ok ? ((await res.json()) as GitRelease).tag_name : null;
+      const tag = res.ok ? releaseVersion(component, (await res.json()) as GitRelease) : null;
       latestCache.set(component, { tag, at: Date.now() });
       out[component] = tag;
     } catch {
@@ -374,7 +387,7 @@ async function resolveDownload(
         `set ${envUrl} to pin a download URL`,
     );
   }
-  return { version: release.tag_name, url: match.browser_download_url };
+  return { version: releaseVersion(component, release), url: match.browser_download_url };
 }
 
 export async function installComponent(
